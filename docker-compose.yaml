@@ -1,0 +1,32 @@
+---
+# docker-compose.yaml
+services:
+  # ─────────────────────────────────────────────────────────────────────────────
+  dev:
+    container_name: utils-repl-dev
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONPATH: /app/src
+      - PYTHONSTARTUP=/app/.config/python/startup.py
+    stdin_open: true
+    tty: true
+    working_dir: /app
+    command: poetry install && poetry run python
+    profiles: ["dev"]
+  # ─────────────────────────────────────────────────────────────────────────────
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: utils-repl-test
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONPATH: /app/src
+      - PYTHONSTARTUP=/app/.config/python/startup.py
+    working_dir: /app
+    profiles: ["test"]

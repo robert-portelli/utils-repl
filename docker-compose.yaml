@@ -10,7 +10,7 @@ services:
     volumes:
       - .:/app
     environment:
-      - PYTHONPATH: /app/src
+      - PYTHONPATH=/app/src
       - PYTHONSTARTUP=/app/.config/python/startup.py
     stdin_open: true
     tty: true
@@ -26,7 +26,7 @@ services:
     volumes:
       - .:/app
     environment:
-      - PYTHONPATH: /app/src
+      - PYTHONPATH=/app/src
       - PYTHONSTARTUP=/app/.config/python/startup.py
     working_dir: /app
     profiles: ["test"]

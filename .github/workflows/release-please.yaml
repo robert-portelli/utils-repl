@@ -1,4 +1,5 @@
 ---
+# .github/workflows/release-please.yaml
 name: release-please
 on:
   push:
@@ -13,7 +14,7 @@ jobs:
     steps:
       - name: Release Please
         id: release
-        uses: google-github-actions/release-please-action@v4
+        uses: googleapis/release-please-action@v4
         with:
           release-type: python
           package-name: utils-repl

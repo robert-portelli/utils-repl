@@ -1,5 +1,3 @@
-# CONTRIBUTING.md
-
 ## Project Purpose
 `utils-repl` is a professional-grade Python package that enhances REPL (interactive Python shell) workflows. It emphasizes code clarity, semantic versioning, robust release management, and developer productivity. The initial utility is `ImportTracker`. Future tools will support dynamic inspection, hot reloading, and quality-of-life improvements.
 
@@ -14,6 +12,7 @@
 ### Short-Lived Branches
 - `feature/*`: Branched from `development`. PR back into `development`.
 - `release/*`: Branched from `main`. Cherry-picks merge commits from `development`.
+- Other change branches (e.g., `fix/*`, `chore/*`, `docs/*`) follow the same PR flow as `feature/*`
 
 ---
 
@@ -23,7 +22,7 @@
 3. Develop and commit changes
 4. Open a PR from `feature/*` → `development`
 
-> Feature developers do not push directly to `main`. Versioning and production releases are handled by the release admin.
+> Contributors do not push directly to `main`. Versioning and production releases are handled by the release admin.
 
 ---
 
@@ -73,13 +72,20 @@ Use Poetry:
 ---
 
 ## Automation & Protections
-- `release-please.yaml`: Automates changelog/version bump
-- `publish-pypi.yaml`: Builds and uploads to PyPI on tagged releases
-- Branch protections enforced via:
-  - `main-branch-protection.yaml`
-  - `development-branch-protection.yaml`
-  - `feature-branch-protection.yaml`
-- Workflows restricted by `CODEOWNERS`
+
+### Release Automation
+- `release-please.yaml`: Opens a PR to `main` with a changelog and version bump
+- `publish-pypi.yaml`: Builds and uploads to PyPI on `release.published` events
+- `bootstrap-release.yaml`: Manually trigger a dry-run of the full release pipeline
+
+### Branch Protection Workflows
+- `default-branch-protection.yaml`: Enforces strict rules on the default branch (`main`)
+- `release-branch-protection.yaml`: Locks down `release/*` branches
+- `development-branch-protection.yaml`: Applies relaxed rules for collaborative work
+- `change-branch-protection.yaml`: Applies moderate protections to all other branches
+
+### Governance
+- All workflow files are protected via `.github/CODEOWNERS`
 
 ---
 

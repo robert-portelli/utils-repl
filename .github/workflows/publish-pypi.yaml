@@ -1,29 +1,28 @@
 ---
-name: Publish to PyPI
-"on":
-  push:
-    tags:
-      - "v*"
+name: publish-pypi
+on:
+  release:
+    types:
+      - published
+permissions:
+  contents: read
 jobs:
-  publish-to-pypi:
-    name: Build and Publish Python Package
+  publish:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout source code
         uses: actions/checkout@v4
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - name: Install Poetry and Dynamic Versioning
-        run: |
-          curl -sSL https://install.python-poetry.org | python3 -
-          poetry self add poetry-dynamic-versioning
-      - name: Install project dependencies
+      - name: Install Poetry
+        run: curl -sSL https://install.python-poetry.org | python3 -
+      - name: Configure Poetry
+        run: poetry config pypi-token.pypi "${{ secrets.PYPI_API_TOKEN }}"
+      - name: Install dependencies
         run: poetry install --no-root
-      - name: Build package
-        run: poetry build
+      - name: Build and dry-run publish
+        run: poetry publish --build --dry-run
       - name: Publish to PyPI
-        env:
-          POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_API_TOKEN }}
-        run: poetry publish
+        run: poetry publish --build

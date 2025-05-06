@@ -1,0 +1,47 @@
+---
+# .github/workflows/bootstrap-release.yaml
+name: Dry-Run Full Release Pipeline
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write  # Required if later using trusted publishing
+jobs:
+  simulate-release:
+    name: Run release-please and dry-run publish
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install Poetry and Plugin
+        run: |
+          curl -sSL https://install.python-poetry.org | python3 -
+          poetry self add poetry-dynamic-versioning
+      - name: Install project dependencies
+        run: poetry install --no-root
+      - name: Release Please dry-run
+        id: release
+        uses: google-github-actions/release-please-action@v4
+        with:
+          dry-run: true
+          release-type: python
+          package-name: utils-repl
+          bump-minor-pre-major: true
+          pull-request-title-pattern: "chore: release ${version}"
+          changelog-types: |
+            [
+              {"type": "feat", "section": "Features", "hidden": false},
+              {"type": "fix", "section": "Bug Fixes", "hidden": false},
+              {"type": "docs", "section": "Documentation", "hidden": true},
+              {"type": "chore", "section": "Chores", "hidden": true}
+            ]
+      - name: Build and Dry-Run Publish
+        if: steps.release.outputs.release_created == 'true'
+        run: |-
+          poetry build
+          poetry publish --dry-run

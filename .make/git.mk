@@ -29,13 +29,6 @@ start-release:
 	git checkout -b release/prepare-$(DATE)
 	git push -u origin release/prepare-$(DATE)
 
-# Merge main back into development after a release
-# Usage: make sync-dev
-sync-dev:
-	git checkout development
-	git pull origin development
-	git merge main
-	git push origin development
 
 # 📋 GitHub PR Commands
 

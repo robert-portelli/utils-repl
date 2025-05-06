@@ -26,3 +26,23 @@ jobs:
         run: poetry publish --build --dry-run
       - name: Publish to PyPI
         run: poetry publish --build
+  sync-dev:
+    name: Sync main back to development
+    needs: publish
+    runs-on: ubuntu-latest
+    if: github.event.release.published == true
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      - name: Merge main into development
+        run: |
+          git fetch origin
+          git checkout development
+          git merge origin/main --no-edit
+          git push origin development
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

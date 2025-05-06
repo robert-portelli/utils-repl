@@ -1,0 +1,62 @@
+---
+name: Set Release Branch Protection
+on:
+  create:  # triggers for any new branch or tag
+  workflow_dispatch:
+jobs:
+  set-release-branch-protection:
+    if: startsWith(github.ref, 'refs/heads/release/')  # ✅ runtime branch filter
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Apply Protection to release/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        run: |-
+          BRANCH="${GITHUB_REF#refs/heads/}"
+
+          STATUS_CHECKS_JSON=$(jq -n '{
+            strict: true,
+            contexts: ["test-import-tracker", "super-linter"]
+          }')
+
+          PR_REVIEWS_JSON=$(jq -n '{
+            required_approving_review_count: 1,
+            dismiss_stale_reviews: true,
+            require_code_owner_reviews: false,
+            require_last_push_approval: true
+          }')
+
+          RESTRICTIONS=null
+          ENFORCE_ADMINS=true
+          ALLOW_FORCE_PUSHES=false
+          ALLOW_DELETIONS=false
+          LINEAR_HISTORY=true
+
+          BRANCH_PROTECTION_PAYLOAD=$(jq -n \
+            --argjson status_checks "$STATUS_CHECKS_JSON" \
+            --argjson reviews "$PR_REVIEWS_JSON" \
+            --argjson restrictions "$RESTRICTIONS" \
+            --arg enforce_admins "$ENFORCE_ADMINS" \
+            --arg allow_force_pushes "$ALLOW_FORCE_PUSHES" \
+            --arg allow_deletions "$ALLOW_DELETIONS" \
+            --arg required_linear_history "$LINEAR_HISTORY" \
+            '{
+              required_status_checks: $status_checks,
+              enforce_admins: ($enforce_admins | test("true")),
+              required_pull_request_reviews: $reviews,
+              restrictions: $restrictions,
+              allow_force_pushes: ($allow_force_pushes | test("true")),
+              allow_deletions: ($allow_deletions | test("true")),
+              required_linear_history: ($required_linear_history | test("true"))
+            }'
+          )
+
+          echo "$BRANCH_PROTECTION_PAYLOAD" > payload.json
+
+          echo "Setting protection on ${BRANCH}"
+          gh api --method PUT \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/branches/${BRANCH}/protection" \
+            --input payload.json

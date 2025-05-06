@@ -1,5 +1,5 @@
 # Limit who can modify workflows
-.github/workflows/feature-branch-protection.yaml @robertportelli
+.github/workflows/change-branch-protection.yaml @robertportelli
 .github/workflows/default-branch-protection.yaml @robertportelli
 .github/workflows/development-branch-protection.yaml @robertportelli
 .github/workflows/release-branch-protection.yaml @robertportelli

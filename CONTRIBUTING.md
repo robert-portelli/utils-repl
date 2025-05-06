@@ -1,4 +1,4 @@
-## Project Purpose
+# Project Purpose
 `utils-repl` is a professional-grade Python package that enhances REPL (interactive Python shell) workflows. It emphasizes code clarity, semantic versioning, robust release management, and developer productivity. The initial utility is `ImportTracker`. Future tools will support dynamic inspection, hot reloading, and quality-of-life improvements.
 
 ---

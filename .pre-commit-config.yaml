@@ -18,7 +18,7 @@ repos:
       - id: mixed-line-ending
         args: [--fix=lf]
   - repo: https://github.com/google/yamlfmt
-    rev: v0.15.0
+    rev: v0.16.0
     hooks:
       - id: yamlfmt
         name: YAML Formatter (yamlfmt)
@@ -35,7 +35,7 @@ repos:
           - -formatter=eof_newline=true
           - -formatter=gitignore_path=".gitignore"
   - repo: https://github.com/adrienverge/yamllint.git
-    rev: v1.35.1
+    rev: v1.37.1
     hooks:
       - id: yamllint
         name: YAML Linter (yamllint)
@@ -50,12 +50,17 @@ repos:
           - "{extends: default, rules: { line-length: { max: 88, level: warning, allow-non-breakable-inline-mappings:
             true } } }"
   - repo: https://github.com/codespell-project/codespell
-    rev: v2.3.0
+    rev: v2.4.1
     hooks:
       - id: codespell
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.6.2
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]
   # ============== GitHub Actions Workflows ======================
   - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.6
+    rev: v1.7.7
     hooks:
       - id: actionlint
         name: Lint GitHub Actions workflow files
@@ -79,7 +84,7 @@ repos:
         args: [-f, gcc, -x]  # output filename:linenum:colnum (clickable)
         # ============ Python ============================
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.1
+    rev: v0.11.8
     hooks:
       - id: ruff
         types: [python]
@@ -109,7 +114,7 @@ repos:
         language: python
         types: [python]
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.14.1
+    rev: v1.15.0
     hooks:
       - id: mypy
         name: mypy
@@ -122,7 +127,7 @@ repos:
         minimum_pre_commit_version: 2.9.2
         # ===================== JavaScript =============================
   - repo: https://github.com/pre-commit/mirrors-eslint
-    rev: v9.17.0
+    rev: v9.26.0
     hooks:
       - id: eslint
         name: ESLint JavaScript Linter

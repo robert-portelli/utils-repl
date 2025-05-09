@@ -25,18 +25,14 @@ jobs:
             exit 1
           fi
       - name: Build ruleset payload
-        env:
-          EMERGENCY_BYPASS_IDS: ${{ vars.EMERGENCY_BYPASS_IDS }}
         run: |
           ENF="${{ github.event.inputs.enforcement }}"
 
-          # Construct bypass_actors JSON: only include your IDs when enforcement is disabled
           if [[ "$ENF" == "disabled" ]]; then
-            # Split the EMERGENCY_BYPASS_IDS secret into an array
-            IFS=' ' read -r -a IDS <<< "$EMERGENCY_BYPASS_IDS"
-
-            BYPASS_JSON=$(jq -n --argjson ids "$(printf '%s\n' "${IDS[@]}" | jq -R . | jq -s .)" \
-              '$ids | map({ actor_id:(.|tonumber), actor_type:"User", bypass_mode:"always" })')
+            # allow any repo admin (i.e. OrganizationAdmin) to bypass
+            BYPASS_JSON=$(jq -n '[
+              { actor_type: "OrganizationAdmin", actor_id: 1, bypass_mode: "always" }
+            ]')
           else
             BYPASS_JSON=$(jq -n '[]')
           fi

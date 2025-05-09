@@ -2,6 +2,11 @@
 name: Set Default Branch Ruleset
 on:
   workflow_dispatch:
+    inputs:
+      enforcement:
+        description: 'Ruleset enforcement status: active or disabled'
+        required: true
+        default: active
 permissions:
   contents: read
 jobs:
@@ -13,44 +18,61 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.BRANCH_RULESETS }}
         run: |
-          IS_ADMIN=$(gh api repos/${{ github.repository }}/collaborators/${{ github.actor }}/permission --jq '.permission == "admin"')
-          echo "Actor permission: $IS_ADMIN"
+          IS_ADMIN=$(gh api "/repos/${{ github.repository }}/collaborators/${{ github.actor }}/permission" \
+            --jq '.permission == "admin"')
           if [[ "$IS_ADMIN" != "true" ]]; then
             echo "❌ Only repository admins may run this workflow."
             exit 1
           fi
-      - name: Define and write ruleset payload
+      - name: Build ruleset payload
+        env:
+          EMERGENCY_BYPASS_IDS: ${{ vars.EMERGENCY_BYPASS_IDS }}
         run: |
+          ENF="${{ github.event.inputs.enforcement }}"
+
+          # Construct bypass_actors JSON: only include your IDs when enforcement is disabled
+          if [[ "$ENF" == "disabled" ]]; then
+            # Split the EMERGENCY_BYPASS_IDS secret into an array
+            IFS=' ' read -r -a IDS <<< "$EMERGENCY_BYPASS_IDS"
+
+            BYPASS_JSON=$(jq -n --argjson ids "$(printf '%s\n' "${IDS[@]}" | jq -R . | jq -s .)" \
+              '$ids | map({ actor_id:(.|tonumber), actor_type:"User", bypass_mode:"always" })')
+          else
+            BYPASS_JSON=$(jq -n '[]')
+          fi
+
+          # Define required status checks
           STATUS_CHECKS=$(jq -n '{
             type: "required_status_checks",
             parameters: {
-              required_status_checks: [
-                { "context": "test-import-tracker" }
-              ],
+              required_status_checks: [{ context: "super-linter" }],
               strict_required_status_checks_policy: true,
               do_not_enforce_on_create: false
             }
           }')
 
+          # Assemble the full ruleset payload
           jq -n \
             --arg name "Default Branch Ruleset" \
+            --arg enforcement "$ENF" \
             --argjson status_checks "$STATUS_CHECKS" \
+            --argjson bypass_actors "$BYPASS_JSON" \
             '{
               name: $name,
               target: "branch",
-              enforcement: "active",
+              enforcement: $enforcement,
               conditions: {
                 ref_name: {
                   include: ["~DEFAULT_BRANCH"],
-                  exclude: [],
+                  exclude: []
                 }
               },
               rules: [
-                { "type": "required_linear_history" },
-                { "type": "non_fast_forward" },
+                { type: "required_linear_history" },
+                { type: "non_fast_forward" },
                 {
-                  "type": "pull_request",
-                  "parameters": {
+                  type: "pull_request",
+                  parameters: {
                     allowed_merge_methods: ["merge"],
                     dismiss_stale_reviews_on_push: true,
                     require_code_owner_review: false,
@@ -61,20 +83,13 @@ jobs:
                 },
                 $status_checks
               ],
-              bypass_actors: [
-                {
-                  actor_id: 1,
-                  actor_type: "RepositoryRole",
-                  bypass_mode: "always"
-                }
-              ]
+              bypass_actors: $bypass_actors
             }' > payload.json
       - name: Apply default branch ruleset
         env:
           GH_TOKEN: ${{ secrets.BRANCH_RULESETS }}
         run: |-
-          echo "📤 Applying ruleset..."
           gh api --method POST \
             -H "Accept: application/vnd.github+json" \
-            /repos/${{ github.repository }}/rulesets \
+            "/repos/${{ github.repository }}/rulesets" \
             --input payload.json

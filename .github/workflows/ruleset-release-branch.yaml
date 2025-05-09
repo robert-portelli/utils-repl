@@ -25,7 +25,10 @@ jobs:
             target: "branch",
             enforcement: "active",
             conditions: {
-              ref_name: { include: ["release/*"] }
+              ref_name: {
+                include: ["release/*"],
+                exclude: [],
+               }
             },
             bypass_actors: [
               {

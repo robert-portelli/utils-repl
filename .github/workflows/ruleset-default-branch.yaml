@@ -10,6 +10,8 @@ jobs:
     steps:
       - name: Check if actor is repo admin
         id: check-admin
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           IS_ADMIN=$(gh api repos/${{ github.repository }}/collaborators/${{ github.actor }}/permission --jq '.permission == "admin"')
           echo "Actor permission: $IS_ADMIN"
@@ -68,7 +70,7 @@ jobs:
             }' > payload.json
       - name: Apply default branch ruleset
         env:
-          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |-
           echo "📤 Applying ruleset..."
           gh api --method POST \

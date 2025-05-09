@@ -10,7 +10,7 @@ jobs:
     steps:
       - name: Verify actor is repo admin
         env:
-          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          GH_TOKEN: ${{ secrets.BRANCH_RULESETS }}
         run: |
           IS_ADMIN=$(gh api repos/${{ github.repository }}/collaborators/${{ github.actor }}/permission \
             --jq '.permission == "admin"')
@@ -64,7 +64,7 @@ jobs:
           }' > payload.json
       - name: Create or update ruleset
         env:
-          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          GH_TOKEN: ${{ secrets.BRANCH_RULESETS }}
         run: |-
           RULESET_ID=$(gh api "/repos/${{ github.repository }}/rulesets?per_page=100" \
             --jq '.[] | select(.name=="Release Branch Ruleset") .id')

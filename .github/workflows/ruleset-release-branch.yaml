@@ -1,0 +1,79 @@
+---
+name: Manage Release Branch Ruleset
+on:
+  workflow_dispatch:  # Run manually by repo admins when policy changes
+permissions:
+  contents: write
+jobs:
+  upsert-release-ruleset:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify actor is repo admin
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        run: |
+          IS_ADMIN=$(gh api repos/${{ github.repository }}/collaborators/${{ github.actor }}/permission \
+            --jq '.permission == "admin"')
+          if [[ "$IS_ADMIN" != "true" ]]; then
+            echo "❌ Only repository admins may run this workflow."
+            exit 1
+          fi
+      - name: Build ruleset payload
+        run: |
+          jq -n '{
+            name: "Release Branch Ruleset",
+            target: "branch",
+            enforcement: "active",
+            conditions: {
+              ref_name: { include: ["release/*"] }
+            },
+            bypass_actors: [
+              {
+                actor_id: 1,
+                actor_type: "RepositoryRole",
+                bypass_mode: "pull_request"
+              }
+            ],
+            rules: [
+              {
+                type: "pull_request",
+                parameters: {
+                  required_approving_review_count: 1,
+                  dismiss_stale_reviews_on_push: true,
+                  require_code_owner_review: false,
+                  require_last_push_approval: true,
+                  required_review_thread_resolution: false,
+                  allowed_merge_methods: ["merge"]
+                }
+              },
+              {
+                type: "required_status_checks",
+                parameters: {
+                  required_status_checks: [
+                    { context: "test-import-tracker" },
+                    { context: "super-linter" }
+                  ],
+                  strict_required_status_checks_policy: true,
+                  do_not_enforce_on_create: false
+                }
+              },
+              { type: "required_linear_history" },
+              { type: "non_fast_forward" },
+              { type: "deletion" }
+            ]
+          }' > payload.json
+      - name: Create or update ruleset
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        run: |-
+          RULESET_ID=$(gh api "/repos/${{ github.repository }}/rulesets?per_page=100" \
+            --jq '.[] | select(.name=="Release Branch Ruleset") .id')
+          if [[ -n "$RULESET_ID" ]]; then
+            gh api --method PATCH "/repos/${{ github.repository }}/rulesets/${RULESET_ID}" \
+              -H "Accept: application/vnd.github+json" \
+              --input payload.json
+          else
+            gh api --method POST "/repos/${{ github.repository }}/rulesets" \
+              -H "Accept: application/vnd.github+json" \
+              --input payload.json
+          fi

@@ -70,18 +70,19 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.BRANCH_RULESETS }}
         run: |-
-          # 1. Look for an existing ruleset by name
-          RULESET_ID=$(gh api "/repos/${{ github.repository }}/rulesets?per_page=100" \
-                          --jq '.[] | select(.name=="Default Branch Ruleset") .id')
+          RULESET_ID=$(gh api "/repos/${{ github.repository }}/rulesets" --paginate \
+                          --jq '.[] | select(.name=="Default Branch Ruleset") | .id')
+
+          echo "Resolved RULESET_ID: $RULESET_ID"
 
           if [[ -n "$RULESET_ID" ]]; then
-            # 2a. It exists → PATCH to update its rules
+            echo "📝 Updating existing ruleset..."
             gh api --method PATCH \
               -H "Accept: application/vnd.github+json" \
               "/repos/${{ github.repository }}/rulesets/$RULESET_ID" \
               --input payload.json
           else
-            # 2b. It doesn’t exist → POST to create it
+            echo "📤 Creating new ruleset..."
             gh api --method POST \
               -H "Accept: application/vnd.github+json" \
               "/repos/${{ github.repository }}/rulesets" \

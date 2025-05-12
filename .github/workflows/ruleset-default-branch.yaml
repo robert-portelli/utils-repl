@@ -76,15 +76,14 @@ jobs:
           echo "Resolved RULESET_ID: $RULESET_ID"
 
           if [[ -n "$RULESET_ID" ]]; then
-            echo "📝 Updating existing ruleset..."
-            gh api --method PATCH \
+            echo "🗑️ Deleting existing ruleset..."
+            gh api --method DELETE \
               -H "Accept: application/vnd.github+json" \
-              "/repos/${{ github.repository }}/rulesets/$RULESET_ID" \
-              --input payload.json
-          else
-            echo "📤 Creating new ruleset..."
-            gh api --method POST \
-              -H "Accept: application/vnd.github+json" \
-              "/repos/${{ github.repository }}/rulesets" \
-              --input payload.json
+              "/repos/${{ github.repository }}/rulesets/$RULESET_ID"
           fi
+
+          echo "📤 Creating new ruleset..."
+          gh api --method POST \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/rulesets" \
+            --input payload.json

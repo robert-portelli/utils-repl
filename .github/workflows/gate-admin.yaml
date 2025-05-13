@@ -1,0 +1,26 @@
+---
+# .github/workflows/gate-admin.yaml
+name: admin-check
+on:
+  workflow_call: {}
+jobs:
+  check-admin:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install GitHub CLI
+        uses: cli/gh-action@v2
+      - name: Fetch actor permission
+        id: perm
+        run: |
+          PERM=$(gh api \
+            /repos/${{ github.repository }}/collaborators/${{ github.actor }}/permission \
+            -q .permission)
+          echo "permission=$PERM" >> "$GITHUB_OUTPUT"
+      - name: Deny if not admin
+        run: |-
+          echo "Actor: ${{ github.actor }} has permission: ${{ steps.perm.outputs.permission }}"
+          if [[ "${{ steps.perm.outputs.permission }}" != "admin" ]]; then
+            echo "❌ You must be a repo admin to run this."
+            exit 1
+          fi
+          echo "✅ Permission check passed."

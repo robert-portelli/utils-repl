@@ -21,7 +21,7 @@ jobs:
       - name: Lookup ruleset by name
         id: find
         env:
-          GH_TOKEN: ${{ secrets.BRANCH_RULESETS }}
+          GH_TOKEN: ${{ github.token }}
         run: |-
           id=$(gh api /repos/${{ github.repository }}/rulesets \
             --jq ".[] | select(.name==\"${{ inputs.ruleset_name }}\") | .id")

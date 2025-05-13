@@ -10,7 +10,7 @@ jobs:
       - name: Fetch actor permission
         id: perm
         env:
-          GH_TOKEN: ${{ secrets.BRANCH_RULESETS }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           PERM=$(gh api \
             /repos/${{ github.repository }}/collaborators/${{ github.actor }}/permission \

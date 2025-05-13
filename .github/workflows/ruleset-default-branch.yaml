@@ -16,6 +16,8 @@ jobs:
     uses: ./.github/workflows/manage-emergency-ruleset.yaml
     with:
       lock: true
+    secrets:
+      BRANCH_RULESETS: ${{ secrets.BRANCH_RULESETS }}
   set-default-ruleset:
     needs: [admin-only, lookup, lock-repo]
     runs-on: ubuntu-latest
@@ -51,3 +53,5 @@ jobs:
     uses: ./.github/workflows/manage-emergency-ruleset.yaml
     with:
       lock: false
+    secrets:
+      BRANCH_RULESETS: ${{ secrets.BRANCH_RULESETS }}

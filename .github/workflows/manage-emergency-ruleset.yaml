@@ -37,42 +37,39 @@ jobs:
     steps:
       - name: Build emergency ruleset payload
         run: |
-          jq -n \
-            --arg name "Emergency Lockdown" \
-            --argjson bypass_actors '[]' \
-            --argjson cond_checks '{
-              type: "required_status_checks",
-              parameters: {
-                required_status_checks:[{ context:"admin-check / check-admin" }],
-                strict_required_status_checks_policy:true,
-                do_not_enforce_on_create:false
+          cat << 'EOF' > payload.json
+          {
+            "name": "Emergency Lockdown",
+            "target": "branch",
+            "enforcement": "active",
+            "target_matchers": [
+              { "name": "pattern", "pattern": "*", "exclude": false }
+            ],
+            "conditions": {
+              "required_status_checks": {
+                "strict": true,
+                "contexts": ["admin-check / check-admin"]
+              },
+              "pull_request": {
+                "approvals_required": 1,
+                "dismiss_stale_reviews_on_push": true,
+                "require_code_owner_review": false
               }
-            }' \
-            --argjson pr_rule '{
-              type:"pull_request",
-              parameters:{
-                approvals_required:1,
-                dismiss_stale_reviews_on_push:true,
-                require_code_owner_review:false
-              }
-            }' \
-            --argjson rules_array '[{type:"required_linear_history"},{type:"non_fast_forward"},$cond_checks,$pr_rule]' \
-            '{
-              name: $name,
-              target: "branch",
-              enforcement: "active",
-              target_matchers: [{ name:"pattern", pattern:"*", exclude:false }],
-              rules: $rules_array,
-              bypass_actors: $bypass_actors
-            }' > payload.json
-      - name: Create emergency ruleset
+            },
+            "rules": [
+              { "type": "required_linear_history" },
+              { "type": "non_fast_forward" }
+            ],
+            "bypass_actors": []
+          }
+          EOF
+      - name: Create Emergency Lockdown ruleset
         env:
           GH_TOKEN: ${{ secrets.BRANCH_RULESETS }}
         run: |
-          gh api \
-            --method POST \
+          gh api --method POST \
             -H "Accept: application/vnd.github+json" \
-            /repos/${{ github.repository }}/rulesets \
+            "/repos/${{ github.repository }}/rulesets" \
             --input payload.json
   unlock-repo:
     name: Remove Emergency Lockdown

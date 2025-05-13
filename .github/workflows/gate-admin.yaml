@@ -7,10 +7,10 @@ jobs:
   check-admin:
     runs-on: ubuntu-latest
     steps:
-      - name: Install GitHub CLI
-        uses: cli/gh-action@v2
       - name: Fetch actor permission
         id: perm
+        env:
+          GH_TOKEN: ${{ secrets.BRANCH_RULESETS }}
         run: |
           PERM=$(gh api \
             /repos/${{ github.repository }}/collaborators/${{ github.actor }}/permission \

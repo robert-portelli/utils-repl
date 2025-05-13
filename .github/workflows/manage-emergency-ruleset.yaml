@@ -35,31 +35,43 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Create ruleset if missing
+      - name: Build emergency ruleset payload
+        run: |
+          cat <<EOF > payload.json
+          {
+            "name": "Emergency Lockdown",
+            "enforcement": "active",
+            "bypass_actors": [],
+            "target": "branch",
+            "target_matchers": [
+              { "name": "pattern", "pattern": "*", "exclude": false }
+            ],
+            "conditions": {
+              "required_status_checks": {
+                "strict": true,
+                "contexts": ["admin-check / check-admin"]
+              },
+              "pull_request": {
+                "approvals_required": 1,
+                "dismiss_stale_reviews_on_push": true,
+                "require_code_owner_review": false
+              }
+            },
+            "rules": [
+              { "type": "allow_force_pushes", "enabled": false },
+              { "type": "allow_deletions", "enabled": false },
+              { "type": "require_linear_history", "enabled": true }
+            ]
+          }
+          EOF
+      - name: Create Emergency Lockdown ruleset
         env:
           GH_TOKEN: ${{ secrets.BRANCH_RULESETS }}
         run: |
-          if [ -z "${{ needs.lookup.outputs.ruleset_id }}" ]; then
-            gh api --method POST /repos/${{ github.repository }}/rulesets \
-              -H "Accept: application/vnd.github+json" \
-              -f name="Emergency Lockdown" \
-              -F enforcement="active" \
-              -F bypass_actors="[]" \
-              -f target="branch" \
-              -f target_matchers[0].name="pattern" \
-              -f target_matchers[0].pattern="*" \
-              -f target_matchers[0].exclude="false" \
-              -f conditions.required_status_checks.strict="true" \
-              -f conditions.required_status_checks.contexts[]="admin-check / check-admin" \
-              -f conditions.pull_request.approvals_required=1 \
-              -f conditions.pull_request.require_code_owner_review="true" \
-              -f rules.allow_force_pushes="false" \
-              -f rules.allow_deletions="false" \
-              -f rules.require_linear_history="true"
-            echo "Created Emergency Lockdown ruleset."
-          else
-            echo "Ruleset already exists: ${{ needs.lookup.outputs.ruleset_id }}"
-          fi
+          gh api --method POST \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${{ github.repository }}/rulesets" \
+            --input payload.json
   unlock-repo:
     name: Remove Emergency Lockdown
     needs: [admin-only, lookup]

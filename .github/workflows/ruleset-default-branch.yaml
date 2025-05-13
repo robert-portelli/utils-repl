@@ -1,89 +1,53 @@
 ---
+# .github/workflows/ruleset-default-branch.yaml
 name: Set Default Branch Ruleset
 on:
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
+  admin-only:
+    uses: ./.github/workflows/gate-admin.yaml
+  lookup:
+    uses: ./.github/workflows/find-ruleset.yaml
+    with:
+      ruleset_name: "Default Branch Ruleset"
+  lock-repo:
+    uses: ./.github/workflows/manage-emergency-ruleset.yaml
+    with:
+      lock: true
   set-default-ruleset:
+    needs: [admin-only, lookup, lock-repo]
     runs-on: ubuntu-latest
     steps:
-      - name: Check if actor is repo admin
-        id: check-admin
-        env:
-          GH_TOKEN: ${{ secrets.BRANCH_RULESETS }}
-        run: |
-          IS_ADMIN=$(gh api "/repos/${{ github.repository }}/collaborators/${{ github.actor }}/permission" \
-            --jq '.permission == "admin"')
-          if [[ "$IS_ADMIN" != "true" ]]; then
-            echo "❌ Only repository admins may run this workflow."
-            exit 1
-          fi
       - name: Build ruleset payload
         run: |
           BYPASS_JSON=$(jq -n '[]')
-
-          # Define required status checks
-          STATUS_CHECKS=$(jq -n '{
-            type: "required_status_checks",
-            parameters: {
-              required_status_checks: [{ context: "super-linter" }],
-              strict_required_status_checks_policy: true,
-              do_not_enforce_on_create: false
-            }
-          }')
-
-          # Assemble the full ruleset payload
+          STATUS_CHECKS=$(jq -n '{type:"required_status_checks",parameters:{required_status_checks:[{context:"super-linter"}],strict_required_status_checks_policy:true,do_not_enforce_on_create:false}}')
           jq -n \
             --arg name "Default Branch Ruleset" \
             --argjson status_checks "$STATUS_CHECKS" \
             --argjson bypass_actors "$BYPASS_JSON" \
-            '{
-              name: $name,
-              target: "branch",
-              enforcement: "active",
-              conditions: {
-                ref_name: {
-                  include: ["~DEFAULT_BRANCH"],
-                  exclude: []
-                }
-              },
-              rules: [
-                { type: "required_linear_history" },
-                { type: "non_fast_forward" },
-                {
-                  type: "pull_request",
-                  parameters: {
-                    allowed_merge_methods: ["merge"],
-                    dismiss_stale_reviews_on_push: true,
-                    require_code_owner_review: false,
-                    require_last_push_approval: false,
-                    required_approving_review_count: 1,
-                    required_review_thread_resolution: true
-                  }
-                },
-                $status_checks
-              ],
-              bypass_actors: $bypass_actors
-            }' > payload.json
+            '{name:$name,target:"branch",enforcement:"active",conditions:{ref_name:{include:["~DEFAULT_BRANCH"],exclude:[]}},rules:[{type:"required_linear_history"},{type:"non_fast_forward"},{type:"pull_request",parameters:{allowed_merge_methods:["merge"],dismiss_stale_reviews_on_push:true,require_code_owner_review:false,require_last_push_approval:false,required_approving_review_count:1,required_review_thread_resolution:true}},$status_checks],bypass_actors:$bypass_actors}' \
+            > payload.json
       - name: Apply default branch ruleset
         env:
           GH_TOKEN: ${{ secrets.BRANCH_RULESETS }}
-        run: |-
-          RULESET_ID=$(gh api "/repos/${{ github.repository }}/rulesets" --paginate \
-                          --jq '.[] | select(.name=="Default Branch Ruleset") | .id')
-
-          echo "Resolved RULESET_ID: $RULESET_ID"
-
-          if [[ -n "$RULESET_ID" ]]; then
-            echo "🗑️ Deleting existing ruleset..."
+        run: |
+          RS_ID=${{ needs.lookup.outputs.ruleset_id }}
+          if [ -n "$RS_ID" ]; then
+            echo "🗑️ Deleting existing ruleset $RS_ID…"
             gh api --method DELETE \
               -H "Accept: application/vnd.github+json" \
-              "/repos/${{ github.repository }}/rulesets/$RULESET_ID"
+              "/repos/${{ github.repository }}/rulesets/$RS_ID"
           fi
-
-          echo "📤 Creating new ruleset..."
+          echo "📤 Creating new ruleset…"
           gh api --method POST \
             -H "Accept: application/vnd.github+json" \
             "/repos/${{ github.repository }}/rulesets" \
             --input payload.json
+  unlock-repo:
+    needs: set-default-ruleset
+    uses: ./.github/workflows/manage-emergency-ruleset.yaml
+    with:
+      lock: false

@@ -42,9 +42,6 @@ jobs:
             "name": "Emergency Lockdown",
             "target": "branch",
             "enforcement": "active",
-            "target_matchers": [
-              { "name": "pattern", "pattern": "*", "exclude": false }
-            ],
             "conditions": {
               "ref_name": {
                 "include": ["*"],

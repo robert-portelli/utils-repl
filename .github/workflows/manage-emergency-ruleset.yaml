@@ -1,6 +1,6 @@
 ---
 # .github/workflows/manage-emergency-ruleset.yaml
-name: manage-emergency-ruleset
+name: Manage Emergency Ruleset
 on:
   workflow_dispatch:
     inputs:
@@ -23,7 +23,7 @@ jobs:
   admin-only:
     uses: ./.github/workflows/gate-admin.yaml
   lookup:
-    name: Lookup Emergency Lockdown ruleset
+    name: Lookup Emergency Lockdown Ruleset
     uses: ./.github/workflows/find-ruleset.yaml
     with:
       ruleset_name: "Emergency Lockdown"
@@ -35,7 +35,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Build emergency ruleset payload
+      - name: Build Emergency Lockdown Ruleset Payload
         run: |
           cat << 'EOF' > payload.json
           {
@@ -46,6 +46,10 @@ jobs:
               { "name": "pattern", "pattern": "*", "exclude": false }
             ],
             "conditions": {
+              "ref_name": {
+                "include": ["*"],
+                "exclude": []
+              },
               "required_status_checks": {
                 "strict": true,
                 "contexts": ["admin-check / check-admin"]
@@ -53,7 +57,9 @@ jobs:
               "pull_request": {
                 "approvals_required": 1,
                 "dismiss_stale_reviews_on_push": true,
-                "require_code_owner_review": false
+                "require_code_owner_review": false,
+                "require_last_push_approval": false,
+                "required_review_thread_resolution": true
               }
             },
             "rules": [
@@ -63,10 +69,11 @@ jobs:
             "bypass_actors": []
           }
           EOF
-      - name: Create Emergency Lockdown ruleset
+      - name: Create Emergency Lockdown Ruleset
         env:
           GH_TOKEN: ${{ secrets.BRANCH_RULESETS }}
         run: |
+          echo "Creating Emergency Lockdown ruleset..."
           gh api --method POST \
             -H "Accept: application/vnd.github+json" \
             "/repos/${{ github.repository }}/rulesets" \
@@ -79,13 +86,16 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Delete ruleset if present
+      - name: Delete Ruleset If Present
         env:
           GH_TOKEN: ${{ secrets.BRANCH_RULESETS }}
         run: |-
           RS_ID=${{ needs.lookup.outputs.ruleset_id }}
           if [ -n "$RS_ID" ]; then
-            gh api -X DELETE /repos/${{ github.repository }}/rulesets/$RS_ID
+            echo "Deleting ruleset $RS_ID..."
+            gh api -X DELETE \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${{ github.repository }}/rulesets/$RS_ID"
             echo "Deleted ruleset $RS_ID"
           else
             echo "No Emergency Lockdown ruleset found."

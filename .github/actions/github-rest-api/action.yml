@@ -1,0 +1,76 @@
+# .github/actions/github-rest-api/action.yml
+---
+name: "github-rest-api"
+description: "Call the GitHub REST API using curl with customizable method, endpoint,
+  and JSON body"
+inputs:
+  endpoint:
+    description: "API endpoint path (e.g. /repos/owner/repo/rulesets)"
+    required: true
+  method:
+    description: "HTTP method (GET, POST, PUT, DELETE)"
+    required: false
+    default: "PUT"
+  json_body:
+    description: "JSON string for the request body"
+    required: false
+    default: "{}"
+  token:
+    description: "GitHub token used for authentication"
+    required: true
+  extract:
+    description: "Optional jq expression to extract a value from the response"
+    required: false
+outputs:
+  result:
+    description: "The extracted value, if extract was used"
+    value: ${{ steps.extract.outputs.result }}
+  response:
+    description: "The raw API response as a string"
+    value: ${{ steps.request.outputs.response }}
+runs:
+  using: "composite"
+  steps:
+    - name: Make GitHub REST API request
+      id: request
+      shell: bash
+      run: |-
+        TOKEN="${{ inputs.token }}"
+        if [ -z "$TOKEN" ]; then
+          echo "❌ No token provided"
+          exit 1
+        fi
+
+        HTTP_RESPONSE=$(mktemp)
+        HTTP_STATUS=$(curl -s -w "%{http_code}" -o "$HTTP_RESPONSE" \
+          --request "${{ inputs.method }}" \
+          --url "https://api.github.com${{ inputs.endpoint }}" \
+          -H "Accept: application/vnd.github+json" \
+          -H "X-GitHub-Api-Version: 2022-11-28" \
+          -H "Authorization: Bearer $TOKEN" \
+          -H "Content-Type: application/json" \
+          -d '${{ inputs.json_body }}')
+
+        # Show raw output for visibility
+        cat "$HTTP_RESPONSE" > response.json
+
+        # Always export the response as an output
+        echo 'response<<EOF' >> "$GITHUB_OUTPUT"
+        cat response.json >> "$GITHUB_OUTPUT"
+        echo 'EOF' >> "$GITHUB_OUTPUT"
+
+        # Check status
+        if [[ "$HTTP_STATUS" -ge 400 ]]; then
+          echo "❌ Request failed with status $HTTP_STATUS"
+          echo "🔎 Response:"
+          cat response.json
+          exit 1
+        fi
+    - id: extract
+      if: ${{ inputs.extract != '' }}
+      shell: bash
+      run: |-
+        RESULT=$(jq -r "${{ inputs.extract }}" response.json)
+        echo 'result<<EOF' >> "$GITHUB_OUTPUT"
+        echo "$RESULT" >> "$GITHUB_OUTPUT"
+        echo 'EOF' >> "$GITHUB_OUTPUT"

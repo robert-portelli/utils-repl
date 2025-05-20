@@ -1,0 +1,66 @@
+---
+name: Smoke Test Find Ruleset
+on:
+  workflow_dispatch:
+jobs:
+  create-toy-ruleset:
+    name: Create the toy ruleset
+    runs-on: ubuntu-latest
+    outputs:
+      ruleset_name: toy-ruleset
+      result: ${{ steps.post.outputs.result }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: create
+        run: |-
+          {
+            echo 'json<<EOF'
+            cat .github/rulesets/toy-ruleset.json
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+      - id: post
+        uses: ./.github/actions/github-rest-api
+        with:
+          method: POST
+          endpoint: /repos/${{ github.repository }}/rulesets
+          json_body: ${{ steps.create.outputs.json }}
+          extract: '.id'
+          token: ${{ secrets.CI_ADMIN }}
+  find-toy-ruleset:
+    name: Find toy ruleset ID using reusable workflow
+    needs: create-toy-ruleset
+    uses: ./.github/workflows/find-ruleset.yaml
+    with:
+      ruleset_name: ${{ needs.create-toy-ruleset.outputs.ruleset_name }}
+    secrets:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  smoke-find-ruleset:
+    name: Validate ruleset ID match
+    runs-on: ubuntu-latest
+    needs: [create-toy-ruleset, find-toy-ruleset]
+    steps:
+      - name: ❌ Fail if mismatch
+        if: ${{ needs.create-toy-ruleset.outputs.result != needs.find-toy-ruleset.outputs.ruleset_id
+          }}
+        run: |
+          echo "❌ Ruleset ID mismatch!"
+          echo "Created: ${{ needs.create-toy-ruleset.outputs.result }}"
+          echo "Found:   ${{ needs.find-toy-ruleset.outputs.ruleset_id }}"
+          exit 1
+      - name: ✅ Pass if match
+        if: ${{ needs.create-toy-ruleset.outputs.result == needs.find-toy-ruleset.outputs.ruleset_id
+          }}
+        run: |
+          echo "✅ Ruleset ID verified."
+  clean-up:
+    name: 🧹 Delete toy ruleset
+    runs-on: ubuntu-latest
+    needs: [create-toy-ruleset, find-toy-ruleset, smoke-find-ruleset]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/github-rest-api
+        with:
+          method: DELETE
+          endpoint: /repos/${{ github.repository }}/rulesets/${{ needs.create-toy-ruleset.outputs.result
+            }}
+          token: ${{ secrets.CI_ADMIN }}

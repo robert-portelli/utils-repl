@@ -1,0 +1,31 @@
+---
+# .github/actions/gate-token/action.yml
+name: "Check Token Context"
+description: "Detect if running in act vs GitHub by comparing token secrets"
+inputs:
+  GITHUB_TOKEN:
+    required: true
+  CI_ADMIN:
+    required: true
+outputs:
+  context:
+    description: "Execution context: act or github"
+    value: ${{ steps.detect.outputs.context }}
+runs:
+  using: "composite"
+  steps:
+    - id: github
+      shell: bash
+      if: ${{ inputs.GITHUB_TOKEN != inputs.CI_ADMIN }}
+      run: |-
+        echo "CONTEXT=github" >> $GITHUB_ENV
+    - id: act
+      shell: bash
+      if: ${{ inputs.GITHUB_TOKEN == inputs.CI_ADMIN }}
+      run: |-
+        echo "CONTEXT=act" >> $GITHUB_ENV
+    - id: detect
+      shell: bash
+      if: ${{ env.CONTEXT }}
+      run: |-
+        echo "context=${CONTEXT}" >> "$GITHUB_OUTPUT"

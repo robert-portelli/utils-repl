@@ -33,7 +33,7 @@ jobs:
     with:
       ruleset_name: ${{ needs.create-toy-ruleset.outputs.ruleset_name }}
     secrets:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   smoke-find-ruleset:
     name: Validate ruleset ID match
     runs-on: ubuntu-latest

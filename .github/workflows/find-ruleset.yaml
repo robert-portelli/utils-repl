@@ -1,6 +1,6 @@
 ---
 name: find-ruleset
-on:
+"on":
   workflow_call:
     inputs:
       ruleset_name:

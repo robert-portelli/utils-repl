@@ -1,6 +1,6 @@
 ---
 name: admin-check
-on:
+"on":
   workflow_call:
     secrets:
       GH_TOKEN:

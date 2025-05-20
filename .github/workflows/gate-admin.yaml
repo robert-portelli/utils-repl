@@ -1,26 +1,36 @@
 ---
-# .github/workflows/gate-admin.yaml
 name: admin-check
 on:
-  workflow_call: {}
+  workflow_call:
+    secrets:
+      GITHUB_TOKEN:
+        required: true
 jobs:
+  retrieve-permissions:
+    runs-on: ubuntu-latest
+    outputs:
+      permission: ${{ steps.get-perm.outputs.result }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get actor permission from REST API
+        id: get-perm
+        uses: ./.github/actions/github-rest-api
+        with:
+          method: GET
+          endpoint: /repos/${{ github.repository }}/collaborators/${{ github.actor
+            }}/permission
+          extract: '.permission'
+          token: ${{ secrets.GITHUB_TOKEN }}
   check-admin:
     runs-on: ubuntu-latest
+    needs: retrieve-permissions
     steps:
-      - name: Fetch actor permission
-        id: perm
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          PERM=$(gh api \
-            /repos/${{ github.repository }}/collaborators/${{ github.actor }}/permission \
-            -q .permission)
-          echo "permission=$PERM" >> "$GITHUB_OUTPUT"
       - name: Deny if not admin
+        if: ${{ needs.retrieve-permissions.outputs.permission != 'admin' }}
+        run: |
+          echo "❌ You must be a repo admin to run this."
+          exit 1
+      - name: Permission check passed
+        if: ${{ needs.retrieve-permissions.outputs.permission == 'admin' }}
         run: |-
-          echo "Actor: ${{ github.actor }} has permission: ${{ steps.perm.outputs.permission }}"
-          if [[ "${{ steps.perm.outputs.permission }}" != "admin" ]]; then
-            echo "❌ You must be a repo admin to run this."
-            exit 1
-          fi
           echo "✅ Permission check passed."

@@ -1,5 +1,4 @@
 ---
-# .github/workflows/find-ruleset.yaml
 name: find-ruleset
 on:
   workflow_call:
@@ -12,17 +11,28 @@ on:
       ruleset_id:
         description: 'The ID of the found ruleset (or empty if not found)'
         value: ${{ jobs.lookup.outputs.ruleset_id }}
+    secrets:
+      GITHUB_TOKEN:
+        required: true
 jobs:
   lookup:
     runs-on: ubuntu-latest
     outputs:
-      ruleset_id: ${{ steps.find.outputs.id }}
+      ruleset_id: ${{ steps.extract.outputs.ruleset_id }}
     steps:
-      - name: Lookup ruleset by name
-        id: find
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - uses: actions/checkout@v4
+      - name: Fetch all rulesets
+        id: fetch
+        uses: ./.github/actions/github-rest-api
+        with:
+          method: GET
+          endpoint: /repos/${{ github.repository }}/rulesets
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Extract ruleset ID by name
+        id: extract
+        shell: bash
         run: |-
-          id=$(gh api /repos/${{ github.repository }}/rulesets \
-            --jq ".[] | select(.name==\"${{ inputs.ruleset_name }}\") | .id")
-          echo "id=$id" >> "$GITHUB_OUTPUT"
+          echo '${{ steps.fetch.outputs.response }}' | \
+            jq -r --arg name "${{ inputs.ruleset_name }}" \
+              '.[] | select(.name == $name) | .id' > id.txt
+          echo "ruleset_id=$(cat id.txt)" >> "$GITHUB_OUTPUT"

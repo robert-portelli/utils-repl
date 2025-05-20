@@ -1,0 +1,15 @@
+---
+name: Smoke Test Act
+on:
+  workflow_dispatch:
+jobs:
+  smoke:
+    name: Secure Smoke Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm GitHub context
+        run: |-
+          echo "Repo: $GITHUB_REPOSITORY"
+          echo "Actor: $GITHUB_ACTOR"
+          echo "Workflow: $GITHUB_WORKFLOW"

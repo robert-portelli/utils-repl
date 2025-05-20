@@ -1,0 +1,27 @@
+---
+name: 🔥 Smoke Test GitHub REST API Action
+on:
+  workflow_dispatch:
+jobs:
+  smoke-test:
+    name: 🔬 Test github-rest-api action
+    runs-on: ubuntu-latest
+    steps:
+      - name: ✅ Check out repository
+        uses: actions/checkout@v4
+      - name: 🔍 Make GET request to fetch repo metadata
+        id: repo
+        uses: ./.github/actions/github-rest-api
+        with:
+          method: GET
+          endpoint: /repos/${{ github.repository }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          extract: '.full_name'
+      - name: 🧪 Verify extracted value
+        run: |-
+          echo "Extracted: '${{ steps.repo.outputs.result }}'"
+          if [[ "${{ steps.repo.outputs.result }}" != "${GITHUB_REPOSITORY}" ]]; then
+            echo "❌ Unexpected repository full_name"
+            exit 1
+          fi
+          echo "✅ Smoke test passed"

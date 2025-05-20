@@ -1,6 +1,6 @@
 ---
 name: find-ruleset
-on:
+"on":
   workflow_call:
     inputs:
       ruleset_name:
@@ -12,7 +12,7 @@ on:
         description: 'The ID of the found ruleset (or empty if not found)'
         value: ${{ jobs.lookup.outputs.ruleset_id }}
     secrets:
-      GITHUB_TOKEN:
+      GH_TOKEN:
         required: true
 jobs:
   lookup:
@@ -27,7 +27,7 @@ jobs:
         with:
           method: GET
           endpoint: /repos/${{ github.repository }}/rulesets
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_TOKEN }}
       - name: Extract ruleset ID by name
         id: extract
         shell: bash

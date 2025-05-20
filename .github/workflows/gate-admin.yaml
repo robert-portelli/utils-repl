@@ -1,9 +1,9 @@
 ---
 name: admin-check
-on:
+"on":
   workflow_call:
     secrets:
-      GITHUB_TOKEN:
+      GH_TOKEN:
         required: true
 jobs:
   retrieve-permissions:
@@ -20,7 +20,7 @@ jobs:
           endpoint: /repos/${{ github.repository }}/collaborators/${{ github.actor
             }}/permission
           extract: '.permission'
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_TOKEN }}
   check-admin:
     runs-on: ubuntu-latest
     needs: retrieve-permissions

@@ -7,4 +7,4 @@ jobs:
     name: Smoke Test admin-check workflow
     uses: ./.github/workflows/gate-admin.yaml
     secrets:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

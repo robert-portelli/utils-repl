@@ -1,0 +1,23 @@
+---
+name: Smoke Token Context Gate
+on:
+  workflow_dispatch:
+jobs:
+  smoke-gate-token:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect Token Context
+        id: detect
+        uses: ./.github/actions/gate-token
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CI_ADMIN: ${{ secrets.CI_ADMIN }}
+      - name: Gate on Github Token Context
+        if: ${{ steps.detect.outputs.context == 'github' }}
+        run: |-
+          echo 'GitHub CI context detected: GITHUB_TOKEN != CI_ADMIN'
+      - name: Gate on `act` Token Context
+        if: ${{ steps.detect.outputs.context == 'act' }}
+        run: |-
+          echo 'act context detected: GITHUB_TOKEN == CI_ADMIN'

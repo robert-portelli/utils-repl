@@ -26,36 +26,50 @@ jobs:
           json_body: ${{ steps.create.outputs.json }}
           extract: '.id'
           token: ${{ secrets.CI_ADMIN }}
-  find-toy-ruleset:
-    name: Find toy ruleset ID using reusable workflow
+  find-by-name:
     needs: create-toy-ruleset
     uses: ./.github/workflows/find-ruleset.yaml
     with:
       ruleset_name: ${{ needs.create-toy-ruleset.outputs.ruleset_name }}
     secrets:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  smoke-find-ruleset:
-    name: Validate ruleset ID match
+  find-by-json:
+    needs: create-toy-ruleset
+    uses: ./.github/workflows/find-ruleset.yaml
+    with:
+      json: .github/rulesets/toy-ruleset.json
+    secrets:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  validate-results:
     runs-on: ubuntu-latest
-    needs: [create-toy-ruleset, find-toy-ruleset]
+    needs: [create-toy-ruleset, find-by-name, find-by-json]
     steps:
-      - name: ❌ Fail if mismatch
-        if: ${{ needs.create-toy-ruleset.outputs.result != needs.find-toy-ruleset.outputs.ruleset_id
-          }}
+      - name: 🧪 Compare created ID with both find results
+        shell: bash
         run: |
-          echo "❌ Ruleset ID mismatch!"
-          echo "Created: ${{ needs.create-toy-ruleset.outputs.result }}"
-          echo "Found:   ${{ needs.find-toy-ruleset.outputs.ruleset_id }}"
-          exit 1
-      - name: ✅ Pass if match
-        if: ${{ needs.create-toy-ruleset.outputs.result == needs.find-toy-ruleset.outputs.ruleset_id
-          }}
-        run: |
-          echo "✅ Ruleset ID verified."
+          CREATED="${{ needs.create-toy-ruleset.outputs.result }}"
+          BY_NAME="${{ needs.find-by-name.outputs.ruleset_id }}"
+          BY_JSON="${{ needs.find-by-json.outputs.ruleset_id }}"
+
+          echo "Created ID:  $CREATED"
+          echo "Found by name: $BY_NAME"
+          echo "Found by JSON: $BY_JSON"
+
+          if [[ "$CREATED" != "$BY_NAME" ]]; then
+            echo "❌ Mismatch with find-by-name"
+            exit 1
+          fi
+
+          if [[ "$CREATED" != "$BY_JSON" ]]; then
+            echo "❌ Mismatch with find-by-json"
+            exit 1
+          fi
+
+          echo "✅ Ruleset ID matches for both name and JSON input"
   clean-up:
     name: 🧹 Delete toy ruleset
     runs-on: ubuntu-latest
-    needs: [create-toy-ruleset, find-toy-ruleset, smoke-find-ruleset]
+    needs: [create-toy-ruleset, find-by-name, find-by-json, validate-results]
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/github-rest-api

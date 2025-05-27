@@ -4,18 +4,62 @@ name: find-ruleset
   workflow_call:
     inputs:
       ruleset_name:
-        description: 'The exact name of the ruleset to look up'
-        required: true
+        description: 'The exact name of the ruleset to look up (optional if json is
+          provided)'
+        required: false
+        type: string
+      json:
+        description: 'Path to JSON file containing ruleset definition (optional if
+          ruleset_name is provided)'
+        required: false
         type: string
     outputs:
       ruleset_id:
         description: 'The ID of the found ruleset (or empty if not found)'
-        value: ${{ jobs.lookup.outputs.ruleset_id }}
+        value: ${{ jobs.fetch-ruleset-id.outputs.ruleset_id }}
     secrets:
       GH_TOKEN:
         required: true
 jobs:
-  lookup:
+  validate-input:
+    runs-on: ubuntu-latest
+    steps:
+      - name: No inputs given
+        id: neither
+        if: ${{ ! inputs.ruleset_name && ! inputs.json }}
+        run: |-
+          echo "❌ Must provide either 'ruleset_name' or 'json'."
+          exit 1
+      - name: too many inputs given
+        id: both
+        if: ${{ inputs.ruleset_name && inputs.json }}
+        run: |-
+          echo "❌ Provide only one of 'ruleset_name' or 'json', not both."
+          exit 1
+  extract-ruleset-name:
+    needs: validate-input
+    runs-on: ubuntu-latest
+    outputs:
+      ruleset_name: ${{ steps.extract.outputs.ruleset_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: input_ruleset_name
+        name: ruleset_name was used as input
+        if: ${{ inputs.ruleset_name && ! inputs.json }}
+        run: |-
+          echo "NAME=${{ inputs.ruleset_name }}" >> "$GITHUB_ENV"
+      - id: input_json
+        name: json was used as input
+        if: ${{ inputs.json && ! inputs.ruleset_name }}
+        run: |-
+          NAME=$(jq -r '.name' "${{ inputs.json }}")
+          echo "NAME=$NAME" >> "$GITHUB_ENV"
+      - id: extract
+        if: ${{ env.NAME }}
+        run: |-
+          echo "ruleset_name=${NAME}" >> "$GITHUB_OUTPUT"
+  fetch-ruleset-id:
+    needs: [validate-input, extract-ruleset-name]
     runs-on: ubuntu-latest
     outputs:
       ruleset_id: ${{ steps.extract.outputs.ruleset_id }}
@@ -30,9 +74,8 @@ jobs:
           token: ${{ secrets.GH_TOKEN }}
       - name: Extract ruleset ID by name
         id: extract
-        shell: bash
         run: |-
           echo '${{ steps.fetch.outputs.response }}' | \
-            jq -r --arg name "${{ inputs.ruleset_name }}" \
+            jq -r --arg name "${{ needs.extract-ruleset-name.outputs.ruleset_name }}" \
               '.[] | select(.name == $name) | .id' > id.txt
           echo "ruleset_id=$(cat id.txt)" >> "$GITHUB_OUTPUT"

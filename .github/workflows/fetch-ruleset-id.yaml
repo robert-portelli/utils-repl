@@ -3,8 +3,8 @@ name: fetch-ruleset-id
 "on":
   workflow_call:
     inputs:
-      ruleset_path:
-        description: "Path to the ruleset JSON"
+      ruleset_name:
+        description: "The ruleset_name output via load-json/action.yml"
         required: true
         type: string
     outputs:
@@ -20,11 +20,6 @@ jobs:
     outputs:
       ruleset_id: ${{ steps.fetch.outputs.result }}
     steps:
-      - uses: actions/checkout@v4
-      - id: extract-ruleset-name
-        uses: ./.github/actions/load-json
-        with:
-          path: ${{ inputs.ruleset_path }}
       - name: Fetch and extract ruleset ID
         id: fetch
         uses: ./.github/actions/github-rest-api
@@ -32,8 +27,7 @@ jobs:
           method: GET
           endpoint: /repos/${{ github.repository }}/rulesets
           token: ${{ secrets.GH_TOKEN }}
-          extract: '.[] | select(.name == \"${{ steps.extract-ruleset-name.outputs.ruleset_name
-            }}\") | .id'
+          extract: '.[] | select(.name == \"${{ inputs.ruleset_name }}\") | .id'
       - id: validate
         if: ${{ ! steps.fetch.outputs.result }}
         run: |-

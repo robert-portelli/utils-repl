@@ -7,6 +7,7 @@ jobs:
     name: Create Toy Ruleset
     runs-on: ubuntu-latest
     outputs:
+      ruleset_name: ${{ steps.load.outputs.ruleset_name }}
       extracted_id: ${{ steps.post.outputs.result }}
     steps:
       - uses: actions/checkout@v4
@@ -34,7 +35,7 @@ jobs:
     needs: create-toy-ruleset
     uses: ./.github/workflows/fetch-ruleset-id.yaml
     with:
-      ruleset_path: ./.github/rulesets/toy-ruleset.json
+      ruleset_name: ${{ needs.create-toy-ruleset.outputs.ruleset_name }}
     secrets:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   smoke-test:

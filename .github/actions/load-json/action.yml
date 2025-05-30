@@ -1,0 +1,54 @@
+---
+name: "load-json"
+description: "Load a JSON file and emit it as a string"
+inputs:
+  path:
+    description: "Path to the JSON file"
+    required: true
+  compact:
+    description: "Output compacted JSON"
+    required: false
+    default: 'false'
+outputs:
+  json:
+    description: "Stringified JSON content"
+    value: ${{ steps.load.outputs.json }}
+  ruleset_name:
+    description: "Extracted value of .name from the JSON"
+    value: ${{ steps.load.outputs.ruleset_name }}
+  compact_json:
+    description: "Compacted JSON for submission to APIs"
+    value: ${{ steps.compact.outputs.compact_json }}
+runs:
+  using: "composite"
+  steps:
+    - id: validate
+      shell: bash
+      run: |-
+        jq empty < "${{ inputs.path }}" || {
+          echo "❌ File is not valid JSON"
+          exit 1
+        }
+    - id: load
+      if: ${{ inputs.compact == 'false' }}
+      shell: bash
+      run: |-
+        JSON=$(cat "${{ inputs.path }}")
+        NAME=$(echo "$JSON" | jq -r '.name')
+
+        {
+          echo 'json<<EOF'
+          echo "$JSON"
+          echo 'EOF'
+          echo "ruleset_name=$NAME"
+        } >> "$GITHUB_OUTPUT"
+    - id: compact
+      if: ${{ inputs.compact == 'true' }}
+      shell: bash
+      run: |-
+        COMPACT=$(jq -c . < "${{ inputs.path }}")
+        {
+          echo 'compact_json<<EOF'
+          echo "$COMPACT"
+          echo 'EOF'
+        } >> "$GITHUB_OUTPUT"

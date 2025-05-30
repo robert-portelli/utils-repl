@@ -1,0 +1,44 @@
+---
+name: Smoke Test Load JSON Action
+on:
+  workflow_dispatch:
+jobs:
+  test-load-json:
+    runs-on: ubuntu-latest
+    env:
+      known_ruleset_name: "toy-ruleset"
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Load JSON with compact=false
+        id: load-pretty
+        uses: ./.github/actions/load-json
+        with:
+          path: .github/rulesets/toy-ruleset.json
+      - name: Assert pretty JSON output is valid
+        run: |
+          echo '${{ steps.load-pretty.outputs.json }}' | jq empty
+      - name: Assert ruleset_name is found
+        if: ${{ steps.load-pretty.outputs.ruleset_name != env.known_ruleset_name }}
+        run: |-
+          echo "❌ ruleset_name doesn't match"
+          echo "known_ruleset_name = ${env.known_ruleset_name}"
+          echo "found ruleset_name = ${{ steps.load-pretty.outputs.ruleset_name }}"
+          exit 1
+      - name: Load JSON with compact=true
+        id: load-compact
+        uses: ./.github/actions/load-json
+        with:
+          path: .github/rulesets/toy-ruleset.json
+          compact: true
+      - name: Assert compact JSON output is valid
+        run: |
+          echo '${{ steps.load-compact.outputs.compact_json }}' | jq empty
+      - name: Print all outputs
+        run: |-
+          echo "📦 json (pretty):"
+          echo '${{ steps.load-pretty.outputs.json }}'
+          echo "📛 ruleset_name:"
+          echo '${{ steps.load-pretty.outputs.ruleset_name }}'
+          echo "📦 json (compact):"
+          echo '${{ steps.load-compact.outputs.compact_json }}'

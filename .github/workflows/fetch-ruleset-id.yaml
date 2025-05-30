@@ -1,0 +1,42 @@
+---
+name: fetch-ruleset-id
+"on":
+  workflow_call:
+    inputs:
+      ruleset_path:
+        description: "Path to the ruleset JSON"
+        required: true
+        type: string
+    outputs:
+      ruleset_id:
+        description: 'The ID of the found ruleset (or empty if not found)'
+        value: ${{ jobs.fetch-ruleset-id.outputs.ruleset_id }}
+    secrets:
+      GH_TOKEN:
+        required: true
+jobs:
+  fetch-ruleset-id:
+    runs-on: ubuntu-latest
+    outputs:
+      ruleset_id: ${{ steps.fetch.outputs.result }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: extract-ruleset-name
+        uses: ./.github/actions/load-json
+        with:
+          path: ${{ inputs.ruleset_path }}
+      - name: Fetch and extract ruleset ID
+        id: fetch
+        uses: ./.github/actions/github-rest-api
+        with:
+          method: GET
+          endpoint: /repos/${{ github.repository }}/rulesets
+          token: ${{ secrets.GH_TOKEN }}
+          extract: '.[] | select(.name == \"${{ steps.extract-ruleset-name.outputs.ruleset_name
+            }}\") | .id'
+      - id: validate
+        if: ${{ ! steps.fetch.outputs.result }}
+        run: |-
+          echo "Empty ID result"
+          echo "returned ruleset_id = ${{ steps.fetch.outputs.result }}"
+          exit 1

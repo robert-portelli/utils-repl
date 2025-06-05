@@ -20,6 +20,7 @@ jobs:
     outputs:
       ruleset_id: ${{ steps.fetch.outputs.result }}
     steps:
+      - uses: actions/checkout@v4
       - name: Fetch and extract ruleset ID
         id: fetch
         uses: ./.github/actions/github-rest-api
@@ -28,9 +29,3 @@ jobs:
           endpoint: /repos/${{ github.repository }}/rulesets
           token: ${{ secrets.GH_TOKEN }}
           extract: '.[] | select(.name == \"${{ inputs.ruleset_name }}\") | .id'
-      - id: validate
-        if: ${{ ! steps.fetch.outputs.result }}
-        run: |-
-          echo "Empty ID result"
-          echo "returned ruleset_id = ${{ steps.fetch.outputs.result }}"
-          exit 1

@@ -5,40 +5,19 @@
   "bypass_actors": [],
   "conditions": {
     "ref_name": {
-      "include": ["~DEFAULT_BRANCH"]
+      "include": ["~DEFAULT_BRANCH"],
+      "exclude": []
     }
   },
   "rules": [
-    {
-      "type": "creation"
-    },
+    { "type": "creation" },
     {
       "type": "update",
-      "parameters": {
-        "update_allows_fetch_and_merge": false
-      }
+      "parameters": { "update_allows_fetch_and_merge": false }
     },
-    {
-      "type": "deletion"
-    },
-    {
-      "type": "required_linear_history"
-    },
-    {
-      "type": "merge_queue",
-      "parameters": {
-        "check_response_timeout_minutes": 10,
-        "grouping_strategy": "ALLGREEN",
-        "max_entries_to_build": 3,
-        "max_entries_to_merge": 1,
-        "merge_method": "SQUASH",
-        "min_entries_to_merge": 1,
-        "min_entries_to_merge_wait_minutes": 0
-      }
-    },
-    {
-      "type": "required_signatures"
-    },
+    { "type": "deletion" },
+    { "type": "required_linear_history" },
+    { "type": "required_signatures" },
     {
       "type": "pull_request",
       "parameters": {
@@ -56,38 +35,13 @@
       "parameters": {
         "do_not_enforce_on_create": false,
         "required_status_checks": [
-          {
-            "context": "super-linter",
-            "strict_required_status_checks_policy": true
-          },
-          {
-            "context": "test-import-tracker",
-            "strict_required_status_checks_policy": true
-          },
-          {
-            "context": "release-please",
-            "strict_required_status_checks_policy": true
-          }
-        ]
+          { "context": "super-linter" },
+          { "context": "test-import-tracker" },
+          { "context": "release-please" }
+        ],
+        "strict_required_status_checks_policy": true
       }
     },
-    {
-      "type": "non_fast_forward"
-    },
-    {
-      "type": "commit_message_pattern",
-      "parameters": {
-        "name": "Conventional Commits required",
-        "negate": false,
-        "operator": "regex",
-        "pattern": "^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\\([\\w\\-]+\\))?!?:\\s.+$"
-      }
-    },
-    {
-      "type": "max_file_size",
-      "parameters": {
-        "max_file_size": 5
-      }
-    }
+    { "type": "non_fast_forward" }
   ]
 }

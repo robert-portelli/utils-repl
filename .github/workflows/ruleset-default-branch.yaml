@@ -1,77 +1,111 @@
 ---
-name: Set Default Branch Ruleset
+name: Upsert Default Branch Ruleset
 on:
   workflow_dispatch:
-permissions:
-  contents: read
+    inputs:
+      ruleset_path:
+        description: "the path to the ruleset json"
+        required: true
+        type: string
+        default: "./.github/rulesets/branch-default.json"
+  workflow_call:
+    inputs:
+      json:
+        type: string
+        required: true
+      ruleset_name:
+        type: string
+        required: true
+      called_from_smoke_test:
+        type: boolean
+        required: false
+        default: false
+    secrets:
+      GH_TOKEN:
+        required: true
+      CI_ADMIN:
+        required: true
 jobs:
-  set-default-ruleset:
+  gate-admin:
+    name: Check if caller is admin
+    uses: ./.github/workflows/gate-admin.yaml
+    secrets:
+      GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+  gate-token:
+    name: Check the caller token
+    needs: gate-admin
+    runs-on: ubuntu-latest
+    outputs:
+      context: ${{ steps.detect.outputs.context }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect Token Context
+        id: detect
+        uses: ./.github/actions/gate-token
+        with:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+          CI_ADMIN: ${{ secrets.CI_ADMIN }}
+  load-ruleset:
+    name: Load Ruleset JSON and Ruleset Name
+    needs: gate-token
+    outputs:
+      json: ${{ steps.load-prod.outputs.json || inputs.json }}
+      ruleset_name: ${{ steps.load-prod.outputs.ruleset_name || inputs.ruleset_name
+        }}
     runs-on: ubuntu-latest
     steps:
-      - name: Check if actor is repo admin
-        id: check-admin
+      - uses: actions/checkout@v4
+      - name: Load production ruleset
+        id: load-prod
+        if: ${{ !inputs.called_from_smoke_test }}
+        uses: ./.github/actions/load-json
+        with:
+          path: ${{ inputs.ruleset_path }}
+  local-token:
+    name: smoke the production ruleset and callback with it
+    needs: [gate-token, load-ruleset]
+    if: ${{ needs.gate-token.outputs.context == 'act' && !inputs.called_from_smoke_test
+      }}
+    uses: ./.github/workflows/smoke-ruleset-default-branch.yaml
+    with:
+      json: ${{ needs.load-ruleset.outputs.json }}
+    secrets:
+      GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+      CI_ADMIN: ${{ secrets.CI_ADMIN }}
+  fetch-id:
+    name: Fetch Ruleset ID
+    needs: [gate-token, load-ruleset]
+    uses: ./.github/workflows/fetch-ruleset-id.yaml
+    with:
+      ruleset_name: ${{ needs.load-ruleset.outputs.ruleset_name }}
+    secrets:
+      GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+  upsert-default-branch-ruleset:
+    runs-on: ubuntu-latest
+    name: Upsert Default Branch Ruleset
+    needs: [gate-token, load-ruleset, fetch-id]
+    if: ${{ needs.gate-token.outputs.context == 'github' || (needs.gate-token.outputs.context
+      == 'act' && inputs.called_from_smoke_test) }}
+    steps:
+      - name: PATCH an existing ruleset
+        id: method-patch
+        if: ${{ needs.fetch-id.outputs.ruleset_id }}
+        run: echo "METHOD=PATCH" >> "$GITHUB_ENV"
+      - name: POST a new ruleset
+        id: method-post
+        if: ${{ ! needs.fetch-id.outputs.ruleset_id }}
+        run: echo "METHOD=POST" >> "$GITHUB_ENV"
+      - name: Sanity check
+        if: ${{ ! env.METHOD }}
         run: |
-          IS_ADMIN=$(gh api repos/${{ github.repository }}/collaborators/${{ github.actor }}/permission --jq '.permission == "admin"')
-          echo "Actor permission: $IS_ADMIN"
-          if [[ "$IS_ADMIN" != "true" ]]; then
-            echo "❌ Only repository admins may run this workflow."
-            exit 1
-          fi
-      - name: Define and write ruleset payload
-        run: |
-          STATUS_CHECKS=$(jq -n '{
-            type: "required_status_checks",
-            parameters: {
-              required_status_checks: [
-                { "context": "test-import-tracker" }
-              ],
-              strict_required_status_checks_policy: true,
-              do_not_enforce_on_create: false
-            }
-          }')
-
-          jq -n \
-            --arg name "Default Branch Ruleset" \
-            --argjson status_checks "$STATUS_CHECKS" \
-            '{
-              name: $name,
-              target: "branch",
-              enforcement: "active",
-              conditions: {
-                ref_name: {
-                  include: ["~DEFAULT_BRANCH"]
-                }
-              },
-              rules: [
-                { "type": "required_linear_history" },
-                { "type": "non_fast_forward" },
-                {
-                  "type": "pull_request",
-                  "parameters": {
-                    allowed_merge_methods: ["merge"],
-                    dismiss_stale_reviews_on_push: true,
-                    require_code_owner_review: false,
-                    require_last_push_approval: false,
-                    required_approving_review_count: 1,
-                    required_review_thread_resolution: true
-                  }
-                },
-                $status_checks
-              ],
-              bypass_actors: [
-                {
-                  actor_id: 1,
-                  actor_type: "RepositoryRole",
-                  bypass_mode: "always"
-                }
-              ]
-            }' > payload.json
-      - name: Apply default branch ruleset
-        env:
-          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
-        run: |-
-          echo "📤 Applying ruleset..."
-          gh api --method POST \
-            -H "Accept: application/vnd.github+json" \
-            /repos/${{ github.repository }}/rulesets \
-            --input payload.json
+          echo "❌ METHOD not set"
+          exit 1
+      - uses: actions/checkout@v4
+      - name: Upsert Default Branch Ruleset
+        id: post-ruleset
+        uses: ./.github/actions/github-rest-api
+        with:
+          method: ${{ env.METHOD }}
+          endpoint: /repos/${{ github.repository }}/rulesets
+          json_body: ${{ needs.load-ruleset.outputs.json }}
+          token: ${{ secrets.CI_ADMIN }}

@@ -40,52 +40,27 @@ jobs:
         run: |
           ruleset_name="$(echo '${{ steps.inject.outputs.smoked_json }}' | jq -r '.name')"
           echo "ruleset_name=$ruleset_name" >> "$GITHUB_OUTPUT"
-  post-smoked-ruleset:
-    name: post the smoked ruleset
+  core-upsert-ruleset:
+    name: Post Smoked Ruleset
     needs: prepare-smoked-ruleset
-    uses: ./.github/workflows/ruleset-default-branch.yaml
+    uses: ./.github/workflows/core-upsert-ruleset.yaml
     with:
       json: ${{ needs.prepare-smoked-ruleset.outputs.smoked_json }}
       ruleset_name: ${{ needs.prepare-smoked-ruleset.outputs.smoked_ruleset_name }}
-      called_from_smoke_test: true
     secrets:
       GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
       CI_ADMIN: ${{ secrets.CI_ADMIN }}
-  find-smoked-ruleset-id:
-    name: assert that the ruleset was created
-    needs: [prepare-smoked-ruleset, post-smoked-ruleset]
-    uses: ./.github/workflows/fetch-ruleset-id.yaml
+  core-validate-ruleset:
+    needs: [prepare-smoked-ruleset, core-upsert-ruleset]
+    uses: ./.github/workflows/core-validate-ruleset.yaml
     with:
-      ruleset_name: ${{ needs.prepare-smoked-ruleset.outputs.smoked_ruleset_name }}
+      expected_json: ${{ needs.prepare-smoked-ruleset.outputs.smoked_json }}
+      ruleset_id: ${{ needs.core-upsert-ruleset.outputs.ruleset_id }}
     secrets:
       GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
-  validate-smoke-ruleset:
-    runs-on: ubuntu-latest
-    needs: [prepare-smoked-ruleset, post-smoked-ruleset, find-smoked-ruleset-id]
-    steps:
-      - name: Fetch the smoke ruleset JSON
-        id: fetch
-        uses: ./.github/actions/github-rest-api
-        with:
-          method: GET
-          endpoint: /repos/${{ github.repository }}/rulesets/${{ needs.find-smoked-ruleset-id.outputs.ruleset_id
-            }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Compare expected vs. actual
-        run: |
-          echo '${{ needs.prepare-smoked-ruleset.outputs.smoked_json }}' \
-            | jq --sort-keys . > expected.json
-          echo '${{ steps.fetch.outputs.response }}' \
-            | jq --sort-keys . > actual.json
-
-          if ! diff -u expected.json actual.json; then
-            echo "❌ Mismatch between input and fetched ruleset"
-            exit 1
-          fi
-          echo "✅ Ruleset content matches"
   cleanup-smoked-ruleset:
-    needs: [find-smoked-ruleset-id, validate-smoke-ruleset]  # ← ensures this job waits for validation to finish
-    if: always()  # ← “always” makes it run even if validate‐smoke‐ruleset failed
+    needs: [core-upsert-ruleset, core-validate-ruleset]
+    if: always()
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -93,6 +68,6 @@ jobs:
         uses: ./.github/actions/github-rest-api
         with:
           method: DELETE
-          endpoint: /repos/${{ github.repository }}/rulesets/${{ needs.find-smoked-ruleset-id.outputs.ruleset_id
+          endpoint: /repos/${{ github.repository }}/rulesets/${{ needs.core-upsert-ruleset.outputs.ruleset_id
             }}
           token: ${{ secrets.CI_ADMIN }}

@@ -1,0 +1,51 @@
+---
+# .github/workflows/core-validate-ruleset.yaml
+name: Validate Ruleset Content
+on:
+  workflow_call:
+    inputs:
+      expected_json:
+        required: true
+        type: string
+      ruleset_id:
+        required: true
+        type: string
+    secrets:
+      GH_TOKEN:
+        required: true
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch ruleset from GitHub API
+        id: fetch
+        uses: ./.github/actions/github-rest-api
+        with:
+          method: GET
+          endpoint: /repos/${{ github.repository }}/rulesets/${{ inputs.ruleset_id
+            }}
+          token: ${{ secrets.GH_TOKEN }}
+      - name: Compare expected vs actual ruleset
+        run: |-
+          echo '${{ toJSON(fromJSON(inputs.expected_json)) }}' | jq --sort-keys . > expected.json
+          echo '${{ toJSON(fromJSON(steps.fetch.outputs.response)) }}' \
+            | jq 'del(
+                .id,
+                .node_id,
+                ._links,
+                .source,
+                .source_type,
+                .created_at,
+                .updated_at,
+                .current_user_can_bypass
+              )' | jq --sort-keys . > actual.json
+
+
+          echo "🧪 Comparing JSON:"
+          if ! diff -u expected.json actual.json; then
+            echo "❌ Mismatch between expected and actual ruleset content"
+            exit 1
+          fi
+
+          echo "✅ Ruleset content matches"

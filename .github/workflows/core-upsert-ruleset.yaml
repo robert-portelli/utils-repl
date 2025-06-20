@@ -1,0 +1,64 @@
+---
+name: Core Upsert Ruleset
+on:
+  workflow_call:
+    inputs:
+      json:
+        description: "The full ruleset JSON string"
+        required: true
+        type: string
+      ruleset_name:
+        description: "The name of the ruleset (used for lookup)"
+        required: true
+        type: string
+    secrets:
+      GH_TOKEN:
+        required: true
+      CI_ADMIN:
+        required: true
+    outputs:
+      ruleset_id:
+        description: "The post-upsert ID of the ruleset"
+        value: ${{ jobs.upsert.outputs.ruleset_id }}
+jobs:
+  put-or-post:
+    name: Determine API method
+    uses: ./.github/workflows/fetch-ruleset-id.yaml
+    with:
+      ruleset_name: ${{ inputs.ruleset_name }}
+    secrets:
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
+  upsert:
+    name: Upsert Ruleset
+    needs: put-or-post
+    runs-on: ubuntu-latest
+    outputs:
+      ruleset_id: ${{ steps.post-ruleset.outputs.result }}
+    steps:
+      - name: PUT an existing ruleset
+        id: method-put
+        if: ${{ needs.put-or-post.outputs.ruleset_id }}
+        run: |-
+          echo "METHOD=PUT" >> "$GITHUB_ENV"
+          echo "ENDPOINT=/repos/${GITHUB_REPOSITORY}/rulesets/${{ needs.put-or-post.outputs.ruleset_id }}" >> "$GITHUB_ENV"
+      - name: POST a new ruleset
+        id: method-post
+        if: ${{ ! needs.put-or-post.outputs.ruleset_id }}
+        run: |-
+          echo "METHOD=POST" >> "$GITHUB_ENV"
+          echo "ENDPOINT=/repos/${{ github.repository }}/rulesets" >> "$GITHUB_ENV"
+      - name: Sanity check
+        if: ${{ ! env.METHOD }}
+        run: |
+          echo "❌ METHOD not set"
+          exit 1
+      - uses: actions/checkout@v4
+      - name: Upsert Default Branch Ruleset
+        id: post-ruleset
+        uses: ./.github/actions/github-rest-api
+        with:
+          method: ${{ env.METHOD }}
+          endpoint: ${{ env.ENDPOINT }}
+          json_body: ${{ inputs.json }}
+          token: ${{ secrets.CI_ADMIN }}
+          extract: '.id'

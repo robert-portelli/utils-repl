@@ -8,23 +8,6 @@ on:
         required: true
         type: string
         default: "./.github/rulesets/branch-default.json"
-  workflow_call:
-    inputs:
-      json:
-        type: string
-        required: true
-      ruleset_name:
-        type: string
-        required: true
-      called_from_smoke_test:
-        type: boolean
-        required: false
-        default: false
-    secrets:
-      GH_TOKEN:
-        required: true
-      CI_ADMIN:
-        required: true
 jobs:
   gate-admin:
     name: Check if caller is admin
@@ -49,63 +32,34 @@ jobs:
     name: Load Ruleset JSON and Ruleset Name
     needs: gate-token
     outputs:
-      json: ${{ steps.load-prod.outputs.json || inputs.json }}
-      ruleset_name: ${{ steps.load-prod.outputs.ruleset_name || inputs.ruleset_name
-        }}
+      json: ${{ steps.load-prod.outputs.json }}
+      ruleset_name: ${{ steps.load-prod.outputs.ruleset_name }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Load production ruleset
         id: load-prod
-        if: ${{ !inputs.called_from_smoke_test }}
         uses: ./.github/actions/load-json
         with:
           path: ${{ inputs.ruleset_path }}
   local-token:
     name: smoke the production ruleset and callback with it
     needs: [gate-token, load-ruleset]
-    if: ${{ needs.gate-token.outputs.context == 'act' && !inputs.called_from_smoke_test
-      }}
+    if: ${{ needs.gate-token.outputs.context == 'act' }}
     uses: ./.github/workflows/smoke-ruleset-default-branch.yaml
     with:
       json: ${{ needs.load-ruleset.outputs.json }}
     secrets:
       GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
       CI_ADMIN: ${{ secrets.CI_ADMIN }}
-  fetch-id:
-    name: Fetch Ruleset ID
+  core-upsert-ruleset:
+    name: Upsert Ruleset
     needs: [gate-token, load-ruleset]
-    uses: ./.github/workflows/fetch-ruleset-id.yaml
+    if: ${{ needs.gate-token.outputs.context == 'github' }}
+    uses: ./.github/workflows/core-upsert-ruleset.yaml
     with:
+      json: ${{ needs.load-ruleset.outputs.json }}
       ruleset_name: ${{ needs.load-ruleset.outputs.ruleset_name }}
     secrets:
       GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
-  upsert-default-branch-ruleset:
-    runs-on: ubuntu-latest
-    name: Upsert Default Branch Ruleset
-    needs: [gate-token, load-ruleset, fetch-id]
-    if: ${{ needs.gate-token.outputs.context == 'github' || (needs.gate-token.outputs.context
-      == 'act' && inputs.called_from_smoke_test) }}
-    steps:
-      - name: PATCH an existing ruleset
-        id: method-patch
-        if: ${{ needs.fetch-id.outputs.ruleset_id }}
-        run: echo "METHOD=PATCH" >> "$GITHUB_ENV"
-      - name: POST a new ruleset
-        id: method-post
-        if: ${{ ! needs.fetch-id.outputs.ruleset_id }}
-        run: echo "METHOD=POST" >> "$GITHUB_ENV"
-      - name: Sanity check
-        if: ${{ ! env.METHOD }}
-        run: |
-          echo "❌ METHOD not set"
-          exit 1
-      - uses: actions/checkout@v4
-      - name: Upsert Default Branch Ruleset
-        id: post-ruleset
-        uses: ./.github/actions/github-rest-api
-        with:
-          method: ${{ env.METHOD }}
-          endpoint: /repos/${{ github.repository }}/rulesets
-          json_body: ${{ needs.load-ruleset.outputs.json }}
-          token: ${{ secrets.CI_ADMIN }}
+      CI_ADMIN: ${{ secrets.CI_ADMIN }}

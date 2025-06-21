@@ -34,6 +34,7 @@ jobs:
       ruleset_id: ${{ needs.core-upsert-ruleset.outputs.ruleset_id }}
     secrets:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      CI_ADMIN: ${{ secrets.CI_ADMIN }}
   cleanup:
     name: Cleanup Toy Ruleset
     needs: [core-upsert-ruleset, core-validate-ruleset]

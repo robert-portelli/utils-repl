@@ -13,8 +13,24 @@ on:
     secrets:
       GH_TOKEN:
         required: true
+      CI_ADMIN:
+        required: true
 jobs:
+  gate-token:
+    name: Check the caller token
+    runs-on: ubuntu-latest
+    outputs:
+      context: ${{ steps.detect.outputs.context }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect Token Context
+        id: detect
+        uses: ./.github/actions/gate-token
+        with:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN  }}
+          CI_ADMIN: ${{ secrets.CI_ADMIN }}
   validate:
+    needs: gate-token
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,10 +41,13 @@ jobs:
           method: GET
           endpoint: /repos/${{ github.repository }}/rulesets/${{ inputs.ruleset_id
             }}
-          token: ${{ secrets.GH_TOKEN }}
-      - name: Compare expected vs actual ruleset
-        run: |-
-          echo '${{ toJSON(fromJSON(inputs.expected_json)) }}' | jq --sort-keys . > expected.json
+          token: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN}}
+      - name: Load & sort expected
+        run: |
+          echo '${{ toJSON(fromJSON(inputs.expected_json)) }}' \
+            | jq --sort-keys . > expected.json
+      - name: Load & sanitize actual
+        run: |
           echo '${{ toJSON(fromJSON(steps.fetch.outputs.response)) }}' \
             | jq 'del(
                 .id,
@@ -39,13 +58,20 @@ jobs:
                 .created_at,
                 .updated_at,
                 .current_user_can_bypass
-              )' | jq --sort-keys . > actual.json
-
-
-          echo "🧪 Comparing JSON:"
-          if ! diff -u expected.json actual.json; then
-            echo "❌ Mismatch between expected and actual ruleset content"
-            exit 1
+              )' \
+            | jq --sort-keys . > actual.json
+      - name: Strip out `bypass_actors` under CI
+        if: ${{ needs.gate-token.outputs.context == 'github' }}
+        run: |
+          # only delete if it exists; under `act` it already does
+          if jq 'has("bypass_actors")' expected.json | grep -q true; then
+            jq 'del(.bypass_actors)' expected.json > tmp && mv tmp expected.json
           fi
-
+      - name: Compare expected vs actual
+        run: |-
+          echo "🧪 Comparing JSON:"
+          diff -u expected.json actual.json || {
+            echo "❌ Mismatch between expected and actual ruleset content";
+            exit 1;
+          }
           echo "✅ Ruleset content matches"

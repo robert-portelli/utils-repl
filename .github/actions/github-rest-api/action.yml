@@ -28,6 +28,9 @@ outputs:
   response:
     description: "The raw API response as a string"
     value: ${{ steps.request.outputs.response }}
+  raw_json:
+    description: "The raw JSON response with no wrapping"
+    value: ${{ steps.request.outputs.raw_json }}
 runs:
   using: "composite"
   steps:

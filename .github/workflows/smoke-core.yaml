@@ -1,0 +1,51 @@
+---
+name: Smoke Test Core Logic
+on:
+  workflow_dispatch:
+jobs:
+  load-toy-json:
+    name: Load Toy Ruleset JSON
+    runs-on: ubuntu-latest
+    outputs:
+      json: ${{ steps.load.outputs.json }}
+      ruleset_name: ${{ steps.load.outputs.ruleset_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Load toy ruleset
+        id: load
+        uses: ./.github/actions/load-json
+        with:
+          path: .github/rulesets/toy-ruleset.json
+  core-upsert-ruleset:
+    name: Upsert Toy Ruleset
+    needs: load-toy-json
+    uses: ./.github/workflows/core-upsert-ruleset.yaml
+    with:
+      json: ${{ needs.load-toy-json.outputs.json }}
+      ruleset_name: ${{ needs.load-toy-json.outputs.ruleset_name }}
+    secrets:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      CI_ADMIN: ${{ secrets.CI_ADMIN }}
+  core-validate-ruleset:
+    needs: [load-toy-json, core-upsert-ruleset]
+    uses: ./.github/workflows/core-validate-ruleset.yaml
+    with:
+      expected_json: ${{ toJSON(fromJSON(needs.load-toy-json.outputs.json)) }}
+      ruleset_id: ${{ needs.core-upsert-ruleset.outputs.ruleset_id }}
+    secrets:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      CI_ADMIN: ${{ secrets.CI_ADMIN }}
+  cleanup:
+    name: Cleanup Toy Ruleset
+    needs: [core-upsert-ruleset, core-validate-ruleset]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Delete toy ruleset
+        uses: ./.github/actions/github-rest-api
+        with:
+          method: DELETE
+          endpoint: /repos/${{ github.repository }}/rulesets/${{ needs.core-upsert-ruleset.outputs.ruleset_id
+            }}
+          token: ${{ secrets.CI_ADMIN }}

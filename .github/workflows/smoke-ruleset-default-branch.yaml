@@ -3,10 +3,11 @@ name: Smoke Test Default Branch Ruleset Workflow
 on:
   workflow_dispatch:
     inputs:
-      json:
-        description: "Default Branch Ruleset JSON body."
+      ruleset_path:
+        description: "the path to the ruleset json"
         required: true
         type: string
+        default: "./.github/rulesets/branch-default.json"
   workflow_call:
     inputs:
       json:
@@ -19,8 +20,23 @@ on:
       CI_ADMIN:
         required: true
 jobs:
+  load-json:
+    name: Load Ruleset JSON
+    outputs:
+      json: ${{ inputs.JSON || steps.load-prod.outputs.json }}
+    runs-on: ubuntu-latest
+    steps:
+      - if: ${{ ! inputs.json }}
+        uses: actions/checkout@v4
+      - name: Load production ruleset
+        if: ${{ ! inputs.json }}
+        id: load-prod
+        uses: ./.github/actions/load-json
+        with:
+          path: ${{ inputs.ruleset_path }}
   prepare-smoked-ruleset:
     name: Modify the ruleset to prevent collisions
+    needs: load-json
     runs-on: ubuntu-latest
     outputs:
       smoked_json: ${{ steps.inject.outputs.smoked_json }}
@@ -30,7 +46,7 @@ jobs:
         id: inject
         run: |
           {
-          modified_json="$(echo '${{ inputs.json }}' | jq '.name |= "smoke \(. + "")"')"
+          modified_json="$(echo '${{ needs.load-json.outputs.json }}' | jq '.name |= "smoke \(. + "")"')"
           echo "smoked_json<<EOF"
           echo "$modified_json"
           echo "EOF"

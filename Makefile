@@ -8,33 +8,29 @@ REGISTRY_USERNAME ?= robertportelli
 GIT_SHA := $(shell git rev-parse --short HEAD)
 
 # Include modular makefiles
+include .make/act.mk
 include .make/docker.mk
 include .make/test.mk
 #include .make/pr.mk
 #include .make/branch.mk
 include .make/dev.mk
 
-# 📋 Display Makefile commands
-help:
+help: ## Show all available Make targets and their descriptions, grouped by source file
 	@echo ""
 	@echo "Available commands:"
-	@echo "  clean                 Remove stopped containers"
-	@echo "  feature               Create a new feature branch from development"
-	@echo "  start-release         Create a release prep branch off main"
-	@echo "  sync-dev              Merge main back into development"
-	@echo "  update                Build and push latest Docker image"
-	@echo "  repl                  Launch the REPL inside the dev container"
-	@echo "  test, test-coverage   Run test suite (with optional coverage)"
-	@echo "  test-ci               Run GitHub Actions workflow via act"
-	@echo "  pc-all, pc-one        Run pre-commit on all or selected files"
-	@echo "  super-linter          Run the Super Linter workflow via act"
-	@echo "  tree                  Show project directory structure"
-	@echo "  pr-dev, pr-release    Create PRs to development or release branches"
-	@echo "  pr-main               Create PR to main"
-	@echo "  release-pr-check      List open release-please PRs to main"
-	@echo "  bootstrap-release     Run full release dry-run pipeline"
-	@echo "  protect               Apply GitHub branch protection rules"
+	@for file in $(MAKEFILE_LIST); do \
+		case $$file in \
+			*.mk|Makefile) \
+				if [ -f $$file ]; then \
+					echo ""; \
+					echo "$$file"; \
+					grep -E '^[a-zA-Z0-9_.%/-]+:.*##' $$file | \
+						awk -F':|##' '{ printf "  \033[1m%-20s\033[0m %s\n", $$1, $$3 }'; \
+				fi ;; \
+		esac; \
+	done
 	@echo ""
+
 
 # 🌳 Show project structure
 tree:

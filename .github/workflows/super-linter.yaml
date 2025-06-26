@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   lint:
-    name: Super Linter
+    name: Super_Linter
     runs-on: ubuntu-latest
     permissions:
       contents: read

@@ -1,0 +1,90 @@
+---
+name: Smoke Test Feature Branch Ruleset Workflow
+on:
+  workflow_dispatch:
+    inputs:
+      ruleset_path:
+        description: "the path to the ruleset json"
+        required: true
+        type: string
+        default: "./.github/rulesets/branch-feature.json"
+  workflow_call:
+    inputs:
+      json:
+        description: "Feature Branch Ruleset JSON body."
+        required: true
+        type: string
+    secrets:
+      GH_TOKEN:
+        required: true
+      CI_ADMIN:
+        required: true
+jobs:
+  load-json:
+    name: Load Ruleset JSON
+    outputs:
+      json: ${{ inputs.JSON || steps.load-prod.outputs.json }}
+    runs-on: ubuntu-latest
+    steps:
+      - if: ${{ ! inputs.json }}
+        uses: actions/checkout@v4
+      - name: Load production ruleset
+        if: ${{ ! inputs.json }}
+        id: load-prod
+        uses: ./.github/actions/load-json
+        with:
+          path: ${{ inputs.ruleset_path }}
+  prepare-smoked-ruleset:
+    name: Modify the ruleset to prevent collisions
+    needs: load-json
+    runs-on: ubuntu-latest
+    outputs:
+      smoked_json: ${{ steps.inject.outputs.smoked_json }}
+      smoked_ruleset_name: ${{ steps.name.outputs.ruleset_name }}
+    steps:
+      - name: Inject "smoke:" into ruleset name
+        id: inject
+        run: |
+          {
+          modified_json="$(echo '${{ needs.load-json.outputs.json }}' | jq '.name |= "smoke \(. + "")"')"
+          echo "smoked_json<<EOF"
+          echo "$modified_json"
+          echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - name: Extract ruleset name
+        id: name
+        run: |
+          ruleset_name="$(echo '${{ steps.inject.outputs.smoked_json }}' | jq -r '.name')"
+          echo "ruleset_name=$ruleset_name" >> "$GITHUB_OUTPUT"
+  core-upsert-ruleset:
+    name: Post Smoked Ruleset
+    needs: prepare-smoked-ruleset
+    uses: ./.github/workflows/core-upsert-ruleset.yaml
+    with:
+      json: ${{ needs.prepare-smoked-ruleset.outputs.smoked_json }}
+      ruleset_name: ${{ needs.prepare-smoked-ruleset.outputs.smoked_ruleset_name }}
+    secrets:
+      GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+      CI_ADMIN: ${{ secrets.CI_ADMIN }}
+  core-validate-ruleset:
+    needs: [prepare-smoked-ruleset, core-upsert-ruleset]
+    uses: ./.github/workflows/core-validate-ruleset.yaml
+    with:
+      expected_json: ${{ needs.prepare-smoked-ruleset.outputs.smoked_json }}
+      ruleset_id: ${{ needs.core-upsert-ruleset.outputs.ruleset_id }}
+    secrets:
+      GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+      CI_ADMIN: ${{ secrets.CI_ADMIN }}
+  cleanup-smoked-ruleset:
+    needs: [core-upsert-ruleset, core-validate-ruleset]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove smoke ruleset
+        uses: ./.github/actions/github-rest-api
+        with:
+          method: DELETE
+          endpoint: /repos/${{ github.repository }}/rulesets/${{ needs.core-upsert-ruleset.outputs.ruleset_id
+            }}
+          token: ${{ secrets.CI_ADMIN }}

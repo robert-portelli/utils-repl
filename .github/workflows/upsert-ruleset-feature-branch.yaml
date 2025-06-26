@@ -1,5 +1,5 @@
 ---
-name: Upsert Default Branch Ruleset
+name: Upsert Feature Branch Ruleset
 on:
   workflow_dispatch:
     inputs:
@@ -7,7 +7,7 @@ on:
         description: "the path to the ruleset json"
         required: true
         type: string
-        default: "./.github/rulesets/branch-default.json"
+        default: "./.github/rulesets/branch-feature.json"
 jobs:
   gate-admin:
     name: Check if caller is admin
@@ -46,7 +46,7 @@ jobs:
     name: smoke the production ruleset and callback with it
     needs: [gate-token, load-ruleset]
     if: ${{ needs.gate-token.outputs.context == 'act' }}
-    uses: ./.github/workflows/smoke-ruleset-default-branch.yaml
+    uses: ./.github/workflows/smoke-upsert-ruleset-feature-branch.yaml
     with:
       json: ${{ needs.load-ruleset.outputs.json }}
     secrets:

@@ -1,17 +1,11 @@
 {
-  "name": "Default Branch Ruleset",
+  "name": "Development Branch Ruleset",
   "target": "branch",
   "enforcement": "active",
-    "bypass_actors": [
-      {
-        "actor_type": "RepositoryRole",
-        "actor_id": 5,
-        "bypass_mode": "pull_request"
-      }
-    ],
+  "bypass_actors": [],
   "conditions": {
     "ref_name": {
-      "include": ["~DEFAULT_BRANCH"],
+      "include": ["refs/heads/development"],
       "exclude": []
     }
   },
@@ -19,12 +13,11 @@
     { "type": "creation" },
     { "type": "update" },
     { "type": "deletion" },
-    { "type": "required_linear_history" },
-    { "type": "required_signatures" },
+    { "type": "non_fast_forward" },
     {
       "type": "pull_request",
       "parameters": {
-        "allowed_merge_methods": ["squash"],
+        "allowed_merge_methods": ["merge"],
         "automatic_copilot_code_review_enabled": false,
         "dismiss_stale_reviews_on_push": true,
         "require_code_owner_review": true,
@@ -42,7 +35,6 @@
         ],
         "strict_required_status_checks_policy": true
       }
-    },
-    { "type": "non_fast_forward" }
+    }
   ]
 }

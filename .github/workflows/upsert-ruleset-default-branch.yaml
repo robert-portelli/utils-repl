@@ -46,7 +46,7 @@ jobs:
     name: smoke the production ruleset and callback with it
     needs: [gate-token, load-ruleset]
     if: ${{ needs.gate-token.outputs.context == 'act' }}
-    uses: ./.github/workflows/smoke-ruleset-default-branch.yaml
+    uses: ./.github/workflows/smoke-upsert-ruleset-default-branch.yaml
     with:
       json: ${{ needs.load-ruleset.outputs.json }}
     secrets:

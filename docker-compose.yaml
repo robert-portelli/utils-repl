@@ -15,7 +15,7 @@ services:
     stdin_open: true
     tty: true
     working_dir: /app
-    command: poetry install && poetry run python
+    command: poetry install
     profiles: ["dev"]
   # ─────────────────────────────────────────────────────────────────────────────
   test:

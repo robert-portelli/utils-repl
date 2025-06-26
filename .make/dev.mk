@@ -1,17 +1,16 @@
-# dev.mk - dev-related workflow commands
+# .make/dev.mk — Development utilities
+
 .PHONY: pc-all pc-one super-linter repl
 
-# 🚀 Development REPL
-repl:
-	docker compose run --rm dev
+repl: ## Launch the REPL inside the dev container
+	@echo "🧪 Entering REPL..."
+	docker compose run --rm dev poetry run python
 
-# 🛡️ Pre-commit Commands
-pc-all:
+pc-all: ## Run pre-commit on all files
 	pre-commit run --all-files
 
-pc-one:
+pc-one: ## Run pre-commit on selected files via ARGS
 	pre-commit run --files $(ARGS)
 
-# 🧹 Super Linter Command
-super-linter:
+super-linter: ## Run the Super Linter workflow locally using act
 	gh act -W .github/workflows/super-linter.yaml -P ubuntu-latest=$(REGISTRY_USERNAME)/$(IMAGE_NAME)

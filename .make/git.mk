@@ -3,18 +3,26 @@
 
 # 🪄 Git Branch Management
 
-# Create a feature branch from development
-# Usage: make feature FEATURE=short-branch-name
-feature:
+new-feat: ## Create and push a new feature branch off development
 	@if [ -z "$(FEATURE)" ]; then \
-		echo "❌ ERROR: FEATURE is not set."; \
-		echo "✅ Usage: make feature FEATURE=short-branch-name"; \
-		exit 1; \
-	fi
-	git checkout development
-	git pull origin development
-	git checkout -b feature/$(FEATURE)
-	git push -u origin feature/$(FEATURE)
+	  echo "❌ ERROR: FEATURE is not set. Usage: make new-feat FEATURE=short-name"; \
+	  exit 1; \
+	fi; \
+	git checkout development; \
+	git pull origin development; \
+	git checkout -b feature/$(FEATURE); \
+	git push -u origin HEAD
+
+pr-feature: ## Open a PR from current feature/* branch into development
+	@branch=$$(git rev-parse --abbrev-ref HEAD); \
+	if ! echo "$$branch" | grep -q '^feature/'; then \
+	  echo "❌ Not on a feature/* branch (current: $$branch)"; \
+	  exit 1; \
+	fi; \
+	gh pr create \
+	  --base development \
+	  --head "$$branch" \
+	  --fill
 
 # Create a release preparation branch from main
 # Usage: make start-release DATE=yyyy-mm

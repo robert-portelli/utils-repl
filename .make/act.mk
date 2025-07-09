@@ -15,7 +15,6 @@ endif
 ACT_BASE := gh act workflow_dispatch \
   --secret-file .secrets \
   --container-architecture linux/amd64 \
-  --reuse \
   --rm \
   --actor $(ACTOR)
 

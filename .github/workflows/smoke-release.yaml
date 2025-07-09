@@ -1,0 +1,246 @@
+---
+# .github/workflows/smoke-release.yaml
+name: Smoke End-to-End Release Workflow
+on:
+  workflow_dispatch: {}
+env:
+  FEATURE_BRANCH: feature/smoke-feat
+jobs:
+  gate-admin:
+    name: Check if caller is admin
+    uses: ./.github/workflows/gate-admin.yaml
+    secrets:
+      GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+  load-json:
+    name: Load JSON Rulesets
+    outputs:
+      default_branch_json: ${{ steps.load-default.outputs.json }}
+      default_branch_ruleset_name: ${{ steps.load-default.outputs.ruleset_name }}
+      release_branch_json: ${{ steps.load-release.outputs.json }}
+      release_branch_ruleset_name: ${{ steps.load-release.outputs.ruleset_name }}
+      development_branch_json: ${{ steps.load-development.outputs.json }}
+      development_branch_ruleset_name: ${{ steps.load-development.outputs.ruleset_name
+        }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Load default branch ruleset json
+        id: load-default
+        uses: ./.github/actions/load-json
+        with:
+          path: ./.github/rulesets/branch-default.json
+      - name: Load release branch ruleset json
+        id: load-release
+        uses: ./.github/actions/load-json
+        with:
+          path: ./.github/rulesets/branch-release.json
+      - name: Load development branch ruleset json
+        id: load-development
+        uses: ./.github/actions/load-json
+        with:
+          path: ./.github/rulesets/branch-development.json
+  feature-pr-into-development:
+    needs: [gate-admin, load-json]
+    runs-on: ubuntu-latest
+    outputs:
+      feat_br_sha: ${{ steps.feat_br_sha.outputs.feat_br_sha }}
+      dev_pr: ${{ steps.create-dev-pr.outputs.result }}
+    steps:
+      - name: checkout dev branch
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: development
+          fetch-depth: 0
+      - name: config git
+        run: |-
+          git config --global user.name ${{ github.actor }}
+          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+      - name: create and record feature branch
+        id: feat_br_sha
+        run: |-
+          git checkout -b ${{ env.FEATURE_BRANCH }}
+          echo "feat_br_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Debug workspace
+        run: |
+          echo "Working dir: $PWD"
+          ls -lah .
+      - name: Create smoke‐test commit
+        run: |
+          git commit --allow-empty -m "feat: smoke-release.yaml artifact smoke-test commit #${{ github.run_number }}"
+      - name: push smoke-test artifact
+        run: git push -u origin ${{ env.FEATURE_BRANCH }}
+      - name: Create PR into development
+        id: create-dev-pr
+        uses: ./.github/actions/github-rest-api
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          method: POST
+          endpoint: /repos/${{ github.repository }}/pulls
+          json_body: |
+            {
+              "title": "Smoke test: merge ${{ env.FEATURE_BRANCH }} into development",
+              "head" : "${{ env.FEATURE_BRANCH }}",
+              "base": "development",
+              "body": "Automated smoke-test PR"
+            }
+          extract: '.number'
+  disable-development-ruleset-status-checks:
+    name: Remove status checks from development branch ruleset
+    needs:
+      - load-json
+      - feature-pr-into-development
+    runs-on: ubuntu-latest
+    outputs:
+      disabled_json: ${{ steps.disabled_json.outputs.disabled_json }}
+    steps:
+      - name: Checkout ruleset
+        uses: actions/checkout@v4
+      - name: Delete required_status_checks rule
+        id: disabled_json
+        run: |
+          echo '${{ toJSON(fromJSON(needs.load-json.outputs.development_branch_json)) }}' \
+            | jq '
+                .rules |= map(
+                  if .type=="required_status_checks" then
+                    empty
+                  elif .type=="pull_request" then
+                    .parameters.require_last_push_approval = false |
+                    .parameters.required_approving_review_count = 0 |
+                    .parameters.require_code_owner_review = false
+                  else
+                    .
+                  end
+                )
+              ' \
+            | jq --sort-keys . > disabled.json
+
+          printf 'disabled_json<<EOF\n%s\nEOF\n' "$(cat disabled.json)" \
+            >> "$GITHUB_OUTPUT"
+  core-upsert-ruleset-development:
+    name: Post disabled ruleset
+    needs: [load-json, disable-development-ruleset-status-checks]
+    uses: ./.github/workflows/core-upsert-ruleset.yaml
+    with:
+      json: ${{ needs.disable-development-ruleset-status-checks.outputs.disabled_json
+        }}
+      ruleset_name: ${{ needs.load-json.outputs.development_branch_ruleset_name }}
+    secrets:
+      GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+      CI_ADMIN: ${{ secrets.CI_ADMIN }}
+  merge-feature-pr-into-development:
+    name: Merge Feature PR into Development
+    needs: [feature-pr-into-development, core-upsert-ruleset-development]
+    runs-on: ubuntu-latest
+    outputs:
+      dev_merge_sha: ${{ steps.merge_pr.outputs.result }}
+    steps:
+      - name: checkout dev branch
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          ref: development
+          fetch-depth: 0
+      - name: Merge the feature PR
+        id: merge_pr
+        uses: ./.github/actions/github-rest-api
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          method: PUT
+          endpoint: /repos/${{ github.repository }}/pulls/${{ needs.feature-pr-into-development.outputs.dev_pr
+            }}/merge
+          json_body: |
+            {
+              "commit_title": "chore(smoke): merge feature branch into development",
+              "merge_method": "merge"
+            }
+          extract: .sha
+      - run: echo "MERGE SHA in merge-feature-pr-into-development job= ${{ steps.merge_pr.outputs.result
+          }}"
+  validate-feature-pr-merged:
+    name: Confirm Feature PR Was Merged
+    needs: [feature-pr-into-development, merge-feature-pr-into-development]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check merged status
+        id: check
+        uses: ./.github/actions/github-rest-api
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          method: GET
+          endpoint: /repos/${{ github.repository }}/pulls/${{ needs.feature-pr-into-development.outputs.dev_pr
+            }}
+          extract: '.merged'
+      - name: Fail if not merged
+        run: |
+          if [[ "${{ steps.check.outputs.result }}" != "true" ]]; then
+            echo "❌ Feature PR was not merged. Aborting."
+            exit 1
+          fi
+  enable-development-ruleset-status-checks:
+    name: Post production development branch ruleset
+    needs:
+      - load-json
+      - disable-development-ruleset-status-checks
+      - merge-feature-pr-into-development
+      - validate-feature-pr-merged
+    uses: ./.github/workflows/core-upsert-ruleset.yaml
+    with:
+      json: ${{ needs.load-json.outputs.development_branch_json }}
+      ruleset_name: ${{ needs.load-json.outputs.development_branch_ruleset_name }}
+    secrets:
+      GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+      CI_ADMIN: ${{ secrets.CI_ADMIN }}
+  cleanup:
+    name: Cleanup smoke artifacts
+    needs:
+      - feature-pr-into-development
+      - merge-feature-pr-into-development
+      - validate-feature-pr-merged
+      - enable-development-ruleset-status-checks
+    if: always()
+    runs-on: ubuntu-latest
+    env:
+      DEV_MERGE_SHA: ${{ needs.merge-feature-pr-into-development.outputs.dev_merge_sha
+        }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+          ref: development
+      - name: debug merge sha
+        run: echo "MERGE SHA in cleanup job= ${{ env.DEV_MERGE_SHA }}"
+      - name: config git
+        run: |-
+          git config --global user.name ${{ github.actor }}
+          git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+      - name: Sync with remote development branch
+        run: |
+          git fetch origin development
+          git reset --hard origin/development
+      - name: Close feature into development PR
+        uses: ./.github/actions/github-rest-api
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          method: PATCH
+          endpoint: /repos/${{ github.repository }}/pulls/${{ needs.feature-pr-into-development.outputs.dev_pr
+            }}
+          json_body: |
+            { "state": "closed" }
+        continue-on-error: true
+      - name: Revert feature into development PR commit
+        if: ${{ always()  && env.DEV_MERGE_SHA != '' }}
+        run: |
+          git clean -fd
+          git revert --no-edit -m 1 "$DEV_MERGE_SHA"
+          git push origin development
+      - name: Delete remote feature branch via REST API
+        uses: ./.github/actions/github-rest-api
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          method: DELETE
+          endpoint: /repos/${{ github.repository }}/git/refs/heads/${{ env.FEATURE_BRANCH
+            }}
+        continue-on-error: true

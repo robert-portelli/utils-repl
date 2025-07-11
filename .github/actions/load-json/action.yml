@@ -5,6 +5,10 @@ inputs:
   path:
     description: "Path to the JSON file"
     required: true
+  smoke:
+    description: "Whether or not to smoke the JSON file"
+    required: false
+    default: ''
   compact:
     description: "Output compacted JSON"
     required: false
@@ -12,10 +16,13 @@ inputs:
 outputs:
   json:
     description: "Stringified JSON content"
-    value: ${{ steps.load.outputs.json }}
+    value: ${{ steps.return.outputs.json }}
   ruleset_name:
     description: "Extracted value of .name from the JSON"
-    value: ${{ steps.load.outputs.ruleset_name }}
+    value: ${{ steps.return.outputs.ruleset_name }}
+  target_ref:
+    description: "Extract value of .conditions.ref_name.include"
+    value: ${{steps.return.outputs.target_ref }}
   compact_json:
     description: "Compacted JSON for submission to APIs"
     value: ${{ steps.compact.outputs.compact_json }}
@@ -30,17 +37,53 @@ runs:
           exit 1
         }
     - id: load
-      if: ${{ inputs.compact == 'false' }}
+      if: ${{ inputs.compact == 'false' && inputs.smoke == '' }}
       shell: bash
       run: |-
-        JSON=$(cat "${{ inputs.path }}")
-        NAME=$(echo "$JSON" | jq -r '.name')
+        _JSON=$(cat "${{ inputs.path }}")
+        _NAME=$(echo "$_JSON" | jq -r '.name')
+        _REF=$(echo "$_JSON" | jq -r '.conditions.ref_name.include[0]')
 
+        {
+          echo 'JSON<<EOF'
+          echo "$_JSON"
+          echo 'EOF'
+          echo "RULESET_NAME=$_NAME"
+          echo "REF=$_REF"
+        } >> "$GITHUB_ENV"
+    - id: smoke
+      if: ${{ inputs.compact == 'false' && inputs.smoke != '' }}
+      shell: bash
+      run: |-
+        _JSON=$(cat "${{ inputs.path }}")
+        default_branch="${GITHUB_REF_NAME:-main}"
+        {
+          _modified_json="$(echo "$_JSON" | jq \
+            --arg default_branch "$default_branch" \
+            '.name |= "smoke-\(.)" |
+             .conditions.ref_name.include |= map(
+               if . == "~DEFAULT" then "refs/heads/smoke-\($default_branch)"
+               elif . == "~ALL" then .
+               elif startswith("refs/heads/") then "refs/heads/smoke-\(.[11:])"
+               else .
+               end
+             )')"
+
+          echo 'JSON<<EOF'
+          echo "$_modified_json"
+          echo 'EOF'
+          echo "RULESET_NAME=$(echo "$_modified_json" | jq -r '.name')"
+          echo "REF=$(echo "$_modified_json" | jq -r '.conditions.ref_name.include[0]')"
+        } >> "$GITHUB_ENV"
+    - id: return
+      if: ${{ env.JSON != '' && env.RULESET_NAME != '' }}
+      run: |-
         {
           echo 'json<<EOF'
           echo "$JSON"
           echo 'EOF'
-          echo "ruleset_name=$NAME"
+          echo "ruleset_name=$RULESET_NAME"
+          echo "target_ref=$REF"
         } >> "$GITHUB_OUTPUT"
     - id: compact
       if: ${{ inputs.compact == 'true' }}

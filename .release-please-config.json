@@ -1,0 +1,11 @@
+{
+  "release-type": "python",
+  "bump-minor-pre-major": true,
+  "pull-request-title-pattern": "chore: release ${version}",
+  "changelog-types": [
+    {"type": "feat", "section": "Features", "hidden": false},
+    {"type": "fix", "section": "Bug Fixes", "hidden": false},
+    {"type": "docs", "section": "Documentation", "hidden": true},
+    {"type": "chore", "section": "Chores", "hidden": true}
+  ]
+}

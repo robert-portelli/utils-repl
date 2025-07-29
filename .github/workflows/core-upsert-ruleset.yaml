@@ -19,8 +19,9 @@ on:
     outputs:
       ruleset_id:
         description: "The post-upsert ID of the ruleset"
-        value: ${{ jobs.upsert.outputs.ruleset_id }}
+        value: ${{ jobs.core-upsert-ruleset.outputs.ruleset_id }}
 jobs:
+  # does the ruleset already exist in the repo
   put-or-post:
     name: Determine API method
     uses: ./.github/workflows/fetch-ruleset-id.yaml
@@ -28,7 +29,7 @@ jobs:
       ruleset_name: ${{ inputs.ruleset_name }}
     secrets:
       GH_TOKEN: ${{ secrets.GH_TOKEN }}
-  upsert:
+  core-upsert-ruleset:
     name: Upsert Ruleset
     needs: put-or-post
     runs-on: ubuntu-latest

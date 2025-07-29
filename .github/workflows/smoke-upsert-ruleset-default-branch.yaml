@@ -1,4 +1,3 @@
----
 name: Smoke Test Default Branch Ruleset Workflow
 on:
   workflow_dispatch:  # calling the smoke test directly

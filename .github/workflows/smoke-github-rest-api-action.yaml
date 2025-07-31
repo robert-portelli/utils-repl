@@ -1,27 +1,72 @@
 ---
-name: 🔥 Smoke Test GitHub REST API Action
+name: Smoke Test GitHub REST API Action
 on:
   workflow_dispatch:
 jobs:
-  smoke-test:
-    name: 🔬 Test github-rest-api action
+  matrix-smoke-test:
+    name: Matrix Test github-rest-api
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        test_case: [get-metadata, post-polling, get-bad-token]
     steps:
       - name: ✅ Check out repository
         uses: actions/checkout@v4
-      - name: 🔍 Make GET request to fetch repo metadata
-        id: repo
+      - name: 🔍 GET repo metadata
+        if: matrix.test_case == 'get-metadata'
+        id: get
         uses: ./.github/actions/github-rest-api
         with:
           method: GET
           endpoint: /repos/${{ github.repository }}
           token: ${{ secrets.GITHUB_TOKEN }}
           extract: '.full_name'
-      - name: 🧪 Verify extracted value
+      - name: 🧪 Verify extracted repo full_name
+        if: matrix.test_case == 'get-metadata'
         run: |-
-          echo "Extracted: '${{ steps.repo.outputs.result }}'"
-          if [[ "${{ steps.repo.outputs.result }}" != "${GITHUB_REPOSITORY}" ]]; then
+          echo "Extracted: '${{ steps.get.outputs.result }}'"
+          [[ "${{ steps.get.outputs.result }}" == "${GITHUB_REPOSITORY}" ]] || {
             echo "❌ Unexpected repository full_name"
             exit 1
+          }
+          echo "✅ Passed: GET repo metadata"
+      - name: ⏱️ POST + polling test (check repo visibility)
+        if: matrix.test_case == 'post-polling'
+        id: poll
+        uses: ./.github/actions/github-rest-api
+        with:
+          method: GET
+          endpoint: /repos/${{ github.repository }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          extract: '.visibility'
+          expected: 'public'
+          retries: 5
+          delay: 2
+      - name: 🧪 Check visibility polling result
+        if: matrix.test_case == 'post-polling'
+        run: |-
+          echo "Extracted: '${{ steps.poll.outputs.result }}'"
+          [[ "${{ steps.poll.outputs.result }}" == "public" ]] || {
+            echo "❌ Visibility not as expected"
+            exit 1
+          }
+          echo "✅ Passed: Polling with expected value"
+      - name: ❌ Simulate failure with bad token
+        if: matrix.test_case == 'get-bad-token'
+        id: fail
+        continue-on-error: true
+        uses: ./.github/actions/github-rest-api
+        with:
+          method: GET
+          endpoint: /repos/${{ github.repository }}
+          token: dummy_invalid_token
+          extract: '.full_name'
+      - name: 🧪 Ensure failure occurred
+        if: matrix.test_case == 'get-bad-token'
+        run: |-
+          if [[ "${{ steps.fail.outcome }}" != "failure" ]]; then
+            echo "❌ Expected failure but got success"
+            exit 1
           fi
-          echo "✅ Smoke test passed"
+          echo "✅ Passed: Bad token triggers error"

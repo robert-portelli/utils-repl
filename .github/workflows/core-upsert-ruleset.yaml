@@ -22,7 +22,7 @@ on:
         value: ${{ jobs.core-upsert-ruleset.outputs.ruleset_id }}
 jobs:
   # does the ruleset already exist in the repo
-  put-or-post:
+  upsert-method:
     name: Determine API method
     uses: ./.github/workflows/fetch-ruleset-id.yaml
     with:
@@ -31,20 +31,20 @@ jobs:
       GH_TOKEN: ${{ secrets.GH_TOKEN }}
   core-upsert-ruleset:
     name: Upsert Ruleset
-    needs: put-or-post
+    needs: upsert-method
     runs-on: ubuntu-latest
     outputs:
       ruleset_id: ${{ steps.post-ruleset.outputs.result }}
     steps:
       - name: PUT an existing ruleset
         id: method-put
-        if: ${{ needs.put-or-post.outputs.ruleset_id }}
+        if: ${{ needs.upsert-method.outputs.ruleset_id }}
         run: |-
           echo "METHOD=PUT" >> "$GITHUB_ENV"
-          echo "ENDPOINT=/repos/${GITHUB_REPOSITORY}/rulesets/${{ needs.put-or-post.outputs.ruleset_id }}" >> "$GITHUB_ENV"
+          echo "ENDPOINT=/repos/${GITHUB_REPOSITORY}/rulesets/${{ needs.upsert-method.outputs.ruleset_id }}" >> "$GITHUB_ENV"
       - name: POST a new ruleset
         id: method-post
-        if: ${{ ! needs.put-or-post.outputs.ruleset_id }}
+        if: ${{ ! needs.upsert-method.outputs.ruleset_id }}
         run: |-
           echo "METHOD=POST" >> "$GITHUB_ENV"
           echo "ENDPOINT=/repos/${{ github.repository }}/rulesets" >> "$GITHUB_ENV"
@@ -54,7 +54,7 @@ jobs:
           echo "❌ METHOD not set"
           exit 1
       - uses: actions/checkout@v4
-      - name: Upsert Default Branch Ruleset
+      - name: Upsert Branch Ruleset
         id: post-ruleset
         uses: ./.github/actions/github-rest-api
         with:

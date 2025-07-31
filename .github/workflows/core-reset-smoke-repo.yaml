@@ -1,0 +1,82 @@
+# .github/workflows/core-reset-smoke-repo.yaml
+---
+name: Core Reset Smoke Repo
+on:
+  workflow_call:
+    inputs:
+      src_repo:
+        description: "Source repository to mirror (e.g. owner/repo)"
+        required: true
+        type: string
+      dst_repo:
+        description: "Destination smoke repository (e.g. owner/smoke-repo)"
+        required: true
+        type: string
+    secrets:
+      GH_TOKEN:
+        required: true
+      CI_ADMIN:
+        required: true
+jobs:
+  reset:
+    name: Reset smoke repo to source state
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mirror clone source repo
+        run: |
+          git clone --mirror https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/${{ inputs.src_repo }} /tmp/mirror.git
+      - name: Push mirror to destination
+        working-directory: /tmp/mirror.git
+        run: |
+          # Remove hidden refs
+          git for-each-ref --format='%(refname)' refs/pull | xargs -n 1 git update-ref -d
+
+          git remote set-url origin https://x-access-token:${{ secrets.CI_ADMIN }}@github.com/${{ inputs.dst_repo }}
+          git push --mirror
+  apply-rulesets:
+    name: Apply Branch Protection Rulesets
+    runs-on: ubuntu-latest
+    needs: reset
+    strategy:
+      matrix:
+        ruleset:
+          - path: ./smoke-repo/.github/rulesets/branch-default.json
+          - path: ./smoke-repo/.github/rulesets/branch-release.json
+          - path: ./smoke-repo/.github/rulesets/branch-development.json
+          - path: ./smoke-repo/.github/rulesets/branch-feature.json
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.dst_repo }}
+          token: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+          path: smoke-repo
+      - name: "Load JSON: ruleset = ${{ matrix.ruleset.path }}"
+        id: load-json
+        uses: ./smoke-repo/.github/actions/load-json
+        with:
+          path: ${{ matrix.ruleset.path }}
+      - name: "Core Upsert Ruleset = ${{ matrix.ruleset.path }}"
+        id: upsert
+        uses: ./smoke-repo/.github/actions/upsert-ruleset
+        with:
+          json: ${{ steps.load-json.outputs.json }}
+          ruleset_name: ${{ steps.load-json.outputs.ruleset_name }}
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          ci_admin: ${{ secrets.CI_ADMIN }}
+      - name: "Validate Ruleset = ${{ matrix.ruleset.path }}"
+        uses: ./smoke-repo/.github/workflows/core-validate-ruleset.yaml
+        with:
+          expected_json: ${{ steps.load-json.outputs.json }}
+          ruleset_id: ${{ steps.upsert.outputs.ruleset_id }}
+      - name: "Query GitHub REST API for ruleset ${{ matrix.ruleset.path }}"
+        id: query
+        uses: ./smoke-repo/.github/actions/github-rest-api
+        with:
+          endpoint: /repos/robert-portelli/smoke-utils-repl/rulesets/${{ steps.load-json.outputs.ruleset_name
+            }}
+          method: GET
+          token: ${{ secrets.GITHUB_TOKEN }}
+          extract: '.enforcement'
+          expected: 'active'
+          retries: 3
+          delay: 5

@@ -7,20 +7,38 @@ inputs:
   endpoint:
     description: "API endpoint path (e.g. /repos/owner/repo/rulesets)"
     required: true
+    type: string
   method:
     description: "HTTP method (GET, POST, PUT, DELETE)"
     required: false
-    default: "PUT"
+    type: string
   json_body:
     description: "JSON string for the request body"
     required: false
     default: "{}"
+    type: string
   token:
     description: "GitHub token used for authentication"
     required: true
+    type: string
   extract:
     description: "Optional jq expression to extract a value from the response"
     required: false
+    type: string
+  expected:
+    description: "Optional expected value to poll for"
+    required: false
+    type: string
+  retries:
+    description: "Number of retry attempts (if expected is set)"
+    required: false
+    default: 10
+    type: number
+  delay:
+    description: "Delay in seconds between retries"
+    required: false
+    default: 3
+    type: number
 outputs:
   result:
     description: "The extracted value, if extract was used"
@@ -44,32 +62,55 @@ runs:
           exit 1
         fi
 
-        HTTP_RESPONSE=$(mktemp)
-        HTTP_STATUS=$(curl -s -w "%{http_code}" -o "$HTTP_RESPONSE" \
-          --request "${{ inputs.method }}" \
-          --url "https://api.github.com${{ inputs.endpoint }}" \
-          -H "Accept: application/vnd.github+json" \
-          -H "X-GitHub-Api-Version: 2022-11-28" \
-          -H "Authorization: Bearer $TOKEN" \
-          -H "Content-Type: application/json" \
-          -d '${{ inputs.json_body }}')
+        for attempt in $(seq 1 "${{ inputs.retries }}"); do
+          echo "🌐 Request #$attempt: ${{ inputs.method }} https://api.github.com${{ inputs.endpoint }}"
 
-        # Show raw output for visibility
-        cat "$HTTP_RESPONSE" > response.json
+          HTTP_RESPONSE=$(mktemp)
+          HTTP_STATUS=$(curl -s -w "%{http_code}" -o "$HTTP_RESPONSE" \
+            --request "${{ inputs.method }}" \
+            --url "https://api.github.com${{ inputs.endpoint }}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '${{ inputs.json_body }}')
 
-        # Always export the response as an output
+          cat "$HTTP_RESPONSE" > response.json
+
+          if [[ "$HTTP_STATUS" -ge 400 ]]; then
+            echo "❌ Request failed with status $HTTP_STATUS"
+            echo "🔎 Response:"
+            cat response.json
+            exit 1
+          fi
+
+          if [[ -n "${{ inputs.expected }}" ]]; then
+            VALUE=$(jq -r "${{ inputs.extract }}" response.json || echo "")
+            echo "🔍 Extracted value: $VALUE"
+
+            if [[ "$VALUE" == "${{ inputs.expected }}" ]]; then
+              echo "✅ Success: match found."
+              break
+            fi
+
+            if [[ "$attempt" -lt "${{ inputs.retries }}" ]]; then
+              echo "⏳ Waiting ${{ inputs.delay }} seconds before retry..."
+              sleep "${{ inputs.delay }}"
+            else
+              echo "❌ Failed: expected value '${{ inputs.expected }}' not found after ${{ inputs.retries }} attempts."
+              exit 1
+            fi
+          else
+            break
+          fi
+
+        done
+
         echo 'response<<EOF' >> "$GITHUB_OUTPUT"
         cat response.json >> "$GITHUB_OUTPUT"
         echo 'EOF' >> "$GITHUB_OUTPUT"
-
-        # Check status
-        if [[ "$HTTP_STATUS" -ge 400 ]]; then
-          echo "❌ Request failed with status $HTTP_STATUS"
-          echo "🔎 Response:"
-          cat response.json
-          exit 1
-        fi
     - id: extract
+      name: Extract result from response
       if: ${{ inputs.extract != '' }}
       shell: bash
       run: |-

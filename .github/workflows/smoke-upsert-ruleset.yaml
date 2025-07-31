@@ -1,0 +1,125 @@
+# .github/workflows/smoke-upsert-ruleset.yaml
+---
+name: Smoke Test Upsert Ruleset Composite Action
+on:
+  workflow_dispatch:
+    inputs:
+      src_repo:
+        required: true
+        type: string
+        default: robert-portelli/utils-repl
+      dst_repo:
+        required: true
+        type: string
+        default: robert-portelli/smoke-utils-repl
+jobs:
+  load-json:
+    name: Load Toy Ruleset JSON
+    runs-on: ubuntu-latest
+    outputs:
+      json: ${{ steps.load.outputs.json }}
+      ruleset_name: ${{ steps.load.outputs.ruleset_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Load toy ruleset
+        id: load
+        uses: ./.github/actions/load-json
+        with:
+          path: .github/rulesets/toy-ruleset.json
+  upsert:
+    name: Upsert Toy Ruleset via Composite
+    needs: load-json
+    runs-on: ubuntu-latest
+    outputs:
+      ruleset_id: ${{ steps.upsert.outputs.ruleset_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Upsert ruleset using composite
+        id: upsert
+        uses: ./.github/actions/upsert-ruleset
+        with:
+          json: ${{ needs.load-json.outputs.json }}
+          ruleset_name: ${{ needs.load-json.outputs.ruleset_name }}
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          ci_admin: ${{ secrets.CI_ADMIN }}
+  core-validate-ruleset:
+    needs: [load-json, upsert]
+    uses: ./.github/workflows/core-validate-ruleset.yaml
+    with:
+      expected_json: ${{ toJSON(fromJSON(needs.load-json.outputs.json)) }}
+      ruleset_id: ${{ needs.upsert.outputs.ruleset_id }}
+    secrets:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      CI_ADMIN: ${{ secrets.CI_ADMIN }}
+  dst-reset:
+    name: Start the smoke repo from a known state
+    needs: core-validate-ruleset
+    uses: ./.github/workflows/core-reset-smoke-repo.yaml
+    with:
+      src_repo: ${{ inputs.SRC_REPO }}
+      dst_repo: ${{ inputs.DST_REPO }}
+    secrets:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      CI_ADMIN: ${{ secrets.CI_ADMIN }}
+  dst-load-json:
+    name: Load Toy Ruleset JSON
+    needs: dst-reset
+    runs-on: ubuntu-latest
+    outputs:
+      json: ${{ steps.load-json.outputs.json }}
+      ruleset_name: ${{ steps.load-json.outputs.ruleset_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.dst_repo }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: smoke-repo
+      - name: "DST Load JSON"
+        id: load-json
+        uses: ./smoke-repo/.github/actions/load-json
+        with:
+          path: .github/rulesets/toy-ruleset.json
+  dst-upsert:
+    name: DST Upsert Toy Ruleset via Composite
+    needs: dst-load-json
+    runs-on: ubuntu-latest
+    outputs:
+      ruleset_id: ${{ steps.upsert.outputs.ruleset_id }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.dst_repo }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: smoke-repo
+      - name: Upsert ruleset using composite
+        id: upsert
+        uses: ./smoke-repo/.github/actions/upsert-ruleset
+        with:
+          json: ${{ needs.dst-load-json.outputs.json }}
+          ruleset_name: ${{ needs.dst-load-json.outputs.ruleset_name }}
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          ci_admin: ${{ secrets.CI_ADMIN }}
+          repo: ${{ inputs.dst_repo }}
+  dst-core-validate-ruleset:
+    needs: [dst-load-json, dst-upsert]
+    uses: robert-portelli/smoke-utils-repl/.github/workflows/core-validate-ruleset.yaml@main
+    with:
+      expected_json: ${{ toJSON(fromJSON(needs.dst-load-json.outputs.json)) }}
+      ruleset_id: ${{ needs.dst-upsert.outputs.ruleset_id }}
+    secrets:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      CI_ADMIN: ${{ secrets.CI_ADMIN }}
+  cleanup:
+    name: Cleanup Toy Ruleset
+    needs: [upsert, core-validate-ruleset]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Delete toy ruleset
+        uses: ./.github/actions/github-rest-api
+        with:
+          method: DELETE
+          endpoint: /repos/${{ github.repository }}/rulesets/${{ needs.upsert.outputs.ruleset_id
+            }}
+          token: ${{ secrets.CI_ADMIN }}

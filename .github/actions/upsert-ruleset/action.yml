@@ -1,0 +1,57 @@
+---
+# .github/actions/upsert-ruleset/action.yml
+name: "upsert-ruleset"
+description: "Upsert a branch protection ruleset using GitHub REST API"
+inputs:
+  json:
+    description: "The full ruleset JSON string"
+    required: true
+  ruleset_name:
+    description: "The name of the ruleset (used for lookup)"
+    required: true
+  gh_token:
+    description: "Token for lookup"
+    required: true
+  ci_admin:
+    description: "Admin token for upserting"
+    required: true
+  repo:
+    description: "Target repo for ruleset operations"
+    required: false
+    default: ${{ github.repository }}
+outputs:
+  ruleset_id:
+    description: "The resulting ruleset ID"
+    value: ${{ steps.post.outputs.result }}
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@v4
+    - name: Lookup ruleset ID
+      id: lookup
+      uses: ./.github/actions/github-rest-api
+      with:
+        method: GET
+        endpoint: /repos/${{ inputs.repo }}/rulesets
+        token: ${{ inputs.gh_token }}
+        extract: '.[] | select(.name == \"${{ inputs.ruleset_name }}\") | .id'
+    - name: Determine method
+      id: method
+      shell: bash
+      run: |
+        if [[ -n "${{ steps.lookup.outputs.result }}" ]]; then
+          echo "METHOD=PUT" >> "$GITHUB_ENV"
+          echo "ENDPOINT=/repos/${{ inputs.repo }}/rulesets/${{ steps.lookup.outputs.result }}" >> "$GITHUB_ENV"
+        else
+          echo "METHOD=POST" >> "$GITHUB_ENV"
+          echo "ENDPOINT=/repos/${{ inputs.repo }}/rulesets" >> "$GITHUB_ENV"
+        fi
+    - name: Upsert Ruleset
+      id: post
+      uses: ./.github/actions/github-rest-api
+      with:
+        method: ${{ env.METHOD }}
+        endpoint: ${{ env.ENDPOINT }}
+        json_body: ${{ inputs.json }}
+        token: ${{ inputs.ci_admin }}
+        extract: '.id'

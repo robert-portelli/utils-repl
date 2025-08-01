@@ -1,0 +1,37 @@
+---
+name: Smoke Validate Ruleset Action
+on:
+  workflow_dispatch:
+jobs:
+  test-validate-ruleset:
+    name: Test Validate Ruleset
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Load Toy Ruleset JSON
+        id: load-json
+        uses: ./.github/actions/load-json
+        with:
+          path: .github/rulesets/toy-ruleset.json
+      - name: Upsert Toy Ruleset via Composite
+        id: upsert-ruleset
+        uses: ./.github/actions/upsert-ruleset
+        with:
+          json: ${{ steps.load-json.outputs.json }}
+          ruleset_name: ${{ steps.load-json.outputs.ruleset_name }}
+          gh_token: ${{secrets.GITHUB_TOKEN }}
+          ci_admin: ${{ secrets.CI_ADMIN }}
+      - name: Validate Ruleset via Composite
+        uses: ./.github/actions/validate-ruleset
+        with:
+          expected_json: ${{ toJSON(fromJSON(steps.load-json.outputs.json)) }}
+          ruleset_id: ${{ steps.upsert-ruleset.outputs.ruleset_id }}
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          ci_admin_token: ${{ secrets.CI_ADMIN }}
+      - name: Cleanup Toy Ruleset
+        uses: ./.github/actions/github-rest-api
+        with:
+          method: DELETE
+          endpoint: /repos/${{ github.repository }}/rulesets/${{ steps.upsert-ruleset.outputs.ruleset_id
+            }}
+          token: ${{ secrets.CI_ADMIN }}

@@ -1,0 +1,64 @@
+---
+# .github/actions/validate-ruleset/action.yml
+name: "validate-ruleset"
+description: "Compare expected ruleset JSON with GitHub API result"
+inputs:
+  expected_json:
+    required: true
+  ruleset_id:
+    required: true
+  gh_token:
+    required: true
+  ci_admin_token:
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Check caller token
+      id: gate-token
+      uses: ./.github/actions/gate-token
+      with:
+        GITHUB_TOKEN: ${{ inputs.gh_token  }}
+        CI_ADMIN: ${{ inputs.ci_admin_token }}
+    - name: Fetch actual ruleset json
+      id: fetch
+      uses: ./.github/actions/github-rest-api
+      with:
+        method: GET
+        endpoint: /repos/${{ github.repository }}/rulesets/${{ inputs.ruleset_id }}
+        token: ${{ inputs.gh_token }}
+    - name: Load & sort expected
+      shell: bash
+      run: |
+        echo '${{ toJSON(fromJSON(inputs.expected_json)) }}' \
+          | jq --sort-keys . > expected.json
+    - name: Load & sanitize actual
+      shell: bash
+      run: |
+        echo '${{ toJSON(fromJSON(steps.fetch.outputs.response)) }}' \
+          | jq 'del(
+              .id,
+              .node_id,
+              ._links,
+              .source,
+              .source_type,
+              .created_at,
+              .updated_at,
+              .current_user_can_bypass
+            )' \
+          | jq --sort-keys . > actual.json
+    - name: Strip out `bypass_actors` under CI
+      if: ${{ steps.gate-token.outputs.context == 'github' }}
+      run: |
+        # only delete if it exists; under `act` it already does
+        if jq 'has("bypass_actors")' expected.json | grep -q true; then
+          jq 'del(.bypass_actors)' expected.json > tmp && mv tmp expected.json
+        fi
+    - name: Compare expected vs actual
+      run: |-
+        echo "🧪 Comparing JSON:"
+        diff -u expected.json actual.json || {
+          echo "❌ Mismatch between expected and actual ruleset content";
+          exit 1;
+        }
+        echo "✅ Ruleset content matches"

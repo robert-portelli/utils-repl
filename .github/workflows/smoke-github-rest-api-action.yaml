@@ -11,9 +11,9 @@ jobs:
       matrix:
         test_case: [get-metadata, post-polling, get-bad-token]
     steps:
-      - name: ✅ Check out repository
+      - name: Check out repository
         uses: actions/checkout@v4
-      - name: 🔍 GET repo metadata
+      - name: GET repo metadata
         if: matrix.test_case == 'get-metadata'
         id: get
         uses: ./.github/actions/github-rest-api
@@ -22,7 +22,13 @@ jobs:
           endpoint: /repos/${{ github.repository }}
           token: ${{ secrets.GITHUB_TOKEN }}
           extract: '.full_name'
-      - name: 🧪 Verify extracted repo full_name
+      - name: "Assert HTTP status: ${{ matrix.test_case }}"
+        if: ${{ matrix.test_case == 'get-metadata' && steps.get.outputs.status !=
+          '200' }}
+        run: |-
+          echo "❌ Unexpected HTTP status code: ${{ steps.get.outputs.status }}"
+          exit 1
+      - name: Verify extracted repo full_name
         if: matrix.test_case == 'get-metadata'
         run: |-
           echo "Extracted: '${{ steps.get.outputs.result }}'"
@@ -31,18 +37,24 @@ jobs:
             exit 1
           }
           echo "✅ Passed: GET repo metadata"
-      - name: ⏱️ POST + polling test (check repo visibility)
+      - name: POST + polling test (check repo visibility)
         if: matrix.test_case == 'post-polling'
         id: poll
         uses: ./.github/actions/github-rest-api
         with:
           method: GET
           endpoint: /repos/${{ github.repository }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.CI_ADMIN }}
           extract: '.visibility'
           expected: 'public'
           retries: 5
           delay: 2
+      - name: "Assert HTTP status: ${{ matrix.test_case }}"
+        if: ${{ matrix.test_case == 'post-polling' && steps.poll.outputs.status !=
+          '200' }}
+        run: |-
+          echo "❌ Unexpected HTTP status code: ${{ steps.poll.outputs.status }}"
+          exit 1
       - name: 🧪 Check visibility polling result
         if: matrix.test_case == 'post-polling'
         run: |-
@@ -52,7 +64,7 @@ jobs:
             exit 1
           }
           echo "✅ Passed: Polling with expected value"
-      - name: ❌ Simulate failure with bad token
+      - name: Simulate failure with bad token
         if: matrix.test_case == 'get-bad-token'
         id: fail
         continue-on-error: true
@@ -62,6 +74,12 @@ jobs:
           endpoint: /repos/${{ github.repository }}
           token: dummy_invalid_token
           extract: '.full_name'
+      - name: "Assert HTTP status: ${{ matrix.test_case }}"
+        if: ${{ matrix.test_case == 'get-bad-token' && steps.fail.outputs.status !=
+          '401' }}
+        run: |-
+          echo "❌ Unexpected HTTP status code: ${{ steps.fail.outputs.status }}"
+          exit 1
       - name: 🧪 Ensure failure occurred
         if: matrix.test_case == 'get-bad-token'
         run: |-

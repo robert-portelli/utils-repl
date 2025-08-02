@@ -49,6 +49,9 @@ outputs:
   raw_json:
     description: "The raw JSON response with no wrapping"
     value: ${{ steps.request.outputs.raw_json }}
+  status:
+    description: "The HTTP status code returned by the request"
+    value: ${{ steps.request.outputs.status }}
 runs:
   using: "composite"
   steps:
@@ -76,6 +79,7 @@ runs:
             -d '${{ inputs.json_body }}')
 
           cat "$HTTP_RESPONSE" > response.json
+          echo "status=$HTTP_STATUS" >> "$GITHUB_OUTPUT"
 
           if [[ "$HTTP_STATUS" -ge 400 ]]; then
             echo "❌ Request failed with status $HTTP_STATUS"

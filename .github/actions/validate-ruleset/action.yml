@@ -11,21 +11,27 @@ inputs:
     required: true
   ci_admin_token:
     required: true
+  repo:
+    description: "Target repo for ruleset operations"
+    required: false
 runs:
   using: "composite"
   steps:
-    - name: Check caller token
-      id: gate-token
-      uses: ./.github/actions/gate-token
-      with:
-        GITHUB_TOKEN: ${{ inputs.gh_token  }}
-        CI_ADMIN: ${{ inputs.ci_admin_token }}
+    - name: Set repo variable
+      shell: bash
+      run: |
+        if [[ -z "${{ inputs.repo }}" ]]; then
+          echo "REPO=${GITHUB_REPOSITORY}" >> "$GITHUB_ENV"
+        else
+          echo "REPO=${{ inputs.repo }}" >> "$GITHUB_ENV"
+        fi
+    - uses: actions/checkout@v4
     - name: Fetch actual ruleset json
       id: fetch
       uses: ./.github/actions/github-rest-api
       with:
         method: GET
-        endpoint: /repos/${{ github.repository }}/rulesets/${{ inputs.ruleset_id }}
+        endpoint: /repos/${{ env.REPO }}/rulesets/${{ inputs.ruleset_id }}
         token: ${{ inputs.gh_token }}
     - name: Load & sort expected
       shell: bash

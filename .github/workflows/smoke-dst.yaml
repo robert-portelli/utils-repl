@@ -1,0 +1,66 @@
+---
+name: Smoke Test Default Branch Ruleset Workflow
+on:
+  workflow_dispatch:  # calling the smoke test directly
+    inputs:
+      ruleset_path:
+        description: "the path to the ruleset json"
+        required: true
+        type: string
+        default: "./.github/rulesets/branch-default.json"
+      src_repo:
+        description: "Source repository to mirror (e.g. owner/repo)"
+        required: true
+        type: string
+        default: robert-portelli/utils-repl
+      dst_repo:
+        description: "Destination smoke repository (e.g. owner/smoke-repo)"
+        required: true
+        type: string
+        default: robert-portelli/smoke-utils-repl
+jobs:
+  test-destination-repo:
+    name: Mutate a destination repo from the source repo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Mirror clone source repo
+        uses: ./.github/actions/mirror-clone-repo
+        with:
+          src_repo: ${{ inputs.src_repo }}
+          dst_repo: ${{ inputs.dst_repo }}
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          ci_admin_token: ${{ secrets.CI_ADMIN }}
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.dst_repo }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          path: smoke-repo
+      - name: Load Toy Ruleset JSON
+        id: load-json
+        # outputs:
+        # json
+        # ruleset_name
+        uses: ./smoke-repo/.github/actions/load-json
+        with:
+          path: ./smoke-repo/.github/rulesets/toy-ruleset.json
+      - name: DST Upsert Toy Ruleset via Composite
+        id: upsert-ruleset
+        # outputs:
+        # ruleset_id
+        uses: ./smoke-repo/.github/actions/upsert-ruleset
+        with:
+          json: ${{ steps.load-json.outputs.json }}
+          ruleset_name: ${{ steps.load-json.outputs.ruleset_name }}
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          ci_admin: ${{ secrets.CI_ADMIN }}
+          repo: ${{ inputs.dst_repo }}
+      - name: validate upserted ruleset
+        id: validate
+        uses: ./smoke-repo/.github/actions/validate-ruleset
+        with:
+          expected_json: ${{ toJSON(fromJSON(steps.load-json.outputs.json)) }}
+          ruleset_id: ${{ steps.upsert-ruleset.outputs.ruleset_id }}
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          ci_admin_token: ${{ secrets.CI_ADMIN }}
+          repo: ${{ inputs.dst_repo }}

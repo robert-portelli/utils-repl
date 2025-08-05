@@ -1,0 +1,32 @@
+---
+name: "mirror-clone-repo"
+description: "Mirror clone source repository to destination repository"
+inputs:
+  src_repo:
+    description: "Source repository to mirror (e.g. owner/repo)"
+    required: true
+    type: string
+  dst_repo:
+    description: "Destination repository (e.g. owner/smoke-repo)"
+    required: true
+    type: string
+  gh_token:
+    description: "Restricted PAT"
+    required: true
+  ci_admin_token:
+    description: "Admin token"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Mirror clone source repo
+      run: |
+        git clone --mirror https://x-access-token:${{ inputs.gh_token }}@github.com/${{ inputs.src_repo }} /tmp/mirror.git
+    - name: Push mirror to destination
+      working-directory: /tmp/mirror.git
+      run: |-
+        # Remove hidden refs
+        git for-each-ref --format='%(refname)' refs/pull | xargs -n 1 git update-ref -d
+
+        git remote set-url origin https://x-access-token:${{ inputs.ci_admin_token }}@github.com/${{ inputs.dst_repo }}
+        git push --mirror

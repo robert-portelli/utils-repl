@@ -1,7 +1,13 @@
 ---
 name: Smoke Validate Ruleset Action
 on:
-  workflow_dispatch:
+  workflow_dispatch: {}
+  workflow_call:
+    secrets:
+      GH_TOKEN:
+        required: true
+      CI_ADMIN:
+        required: true
 jobs:
   test-validate-ruleset:
     name: Test Validate Ruleset
@@ -19,14 +25,14 @@ jobs:
         with:
           json: ${{ steps.load-json.outputs.json }}
           ruleset_name: ${{ steps.load-json.outputs.ruleset_name }}
-          gh_token: ${{secrets.GITHUB_TOKEN }}
+          gh_token: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
           ci_admin: ${{ secrets.CI_ADMIN }}
       - name: Validate Ruleset via Composite
         uses: ./.github/actions/validate-ruleset
         with:
           expected_json: ${{ toJSON(fromJSON(steps.load-json.outputs.json)) }}
           ruleset_id: ${{ steps.upsert-ruleset.outputs.ruleset_id }}
-          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          gh_token: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
           ci_admin_token: ${{ secrets.CI_ADMIN }}
       - name: Cleanup Toy Ruleset
         uses: ./.github/actions/github-rest-api

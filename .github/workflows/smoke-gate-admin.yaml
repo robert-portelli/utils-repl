@@ -1,10 +1,40 @@
 ---
 name: Smoke Test Gate Admin
 on:
-  workflow_dispatch:
+  workflow_dispatch: {}
 jobs:
-  smoke-admin-check:
-    name: Smoke Test admin-check workflow
-    uses: ./.github/workflows/gate-admin.yaml
-    secrets:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  smoke-gate-admin:
+    name: Smoke Test Gate Admin Action
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Truthy Admin Token
+        id: truthy
+        uses: ./.github/actions/gate-admin
+        with:
+          gh_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Assert truthy admin check succeeded
+        if: ${{ steps.truthy.outcome == 'failure' || steps.truthy.outputs.permission
+          != 'admin' }}
+        run: |
+          echo "Expected the admin‐check action to succeed with a valid token"
+          exit 1
+      - name: Truthy  admin check behaved as expected
+        if: ${{ steps.truthy.outcome == 'success' && steps.truthy.outputs.permission
+          == 'admin' }}
+        run: echo "Invalid token was correctly accepted"
+      - name: Falsy Admin Token
+        id: falsy
+        uses: ./.github/actions/gate-admin
+        with:
+          gh_token: dummy.token
+        continue-on-error: true
+      - name: Assert falsy admin check failed
+        if: ${{ steps.falsy.outcome != 'failure' }}
+        run: |
+          echo "Expected the admin‐check action to fail with an invalid token"
+          exit 1
+      - name: Falsy admin check behaved as expected
+        if: ${{ steps.falsy.outcome == 'failure' && steps.falsy.outputs.permission
+          != 'admin'}}
+        run: echo "Invalid token was correctly rejected"

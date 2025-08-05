@@ -1,0 +1,31 @@
+---
+name: "admin-check"
+description: "Is the caller an admin"
+inputs:
+  gh_token:
+    description: "Restricted PAT"
+    required: true
+outputs:
+  permission:
+    description: "The caller’s permission level"
+    value: ${{ steps.get-perm.outputs.result }}
+runs:
+  using: "composite"
+  steps:
+    - name: Get actor permission
+      id: get-perm
+      uses: ./.github/actions/github-rest-api
+      with:
+        method: GET
+        endpoint: /repos/${{ github.repository }}/collaborators/${{ github.actor }}/permission
+        extract: '.permission'
+        token: ${{ inputs.gh_token }}
+    - name: Deny if not admin
+      if: ${{ steps.get-perm.outputs.result != 'admin' }}
+      run: |
+        echo "❌ You must be a repo admin to run this."
+        exit 1
+    - name: Permission check passed
+      if: ${{ steps.get-perm.outputs.result == 'admin' }}
+      run: |-
+        echo "✅ Permission check passed."

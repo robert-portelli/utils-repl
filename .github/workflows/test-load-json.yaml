@@ -1,0 +1,75 @@
+---
+name: Test Suite for Load JSON Action
+on:
+  workflow_call:
+    inputs:
+      path:
+        description: "Path to the JSON file"
+        required: true
+        type: string
+      compact:
+        description: "Set true to compact the JSON"
+        required: false
+        default: false
+        type: boolean
+      smoke:
+        description: "Set to true to simulate smoking the JSON"
+        required: false
+        default: ''
+        type: string
+      expected_name:
+        description: "Expected value of .name in the JSON"
+        required: false
+        type: string
+      expected_ref:
+        description: "Expected value of .conditions.ref_name.include[0]"
+        required: false
+        type: string
+    secrets: {}
+jobs:
+  test-load-json:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+      - name: Load JSON
+        id: load
+        uses: ./.github/actions/load-json
+        with:
+          path: ${{ inputs.path }}
+          compact: ${{ inputs.compact }}
+          smoke: ${{ inputs.smoke }}
+      - name: Assert JSON is valid
+        if: ${{ !inputs.compact }}
+        run: |
+          echo '${{ steps.load.outputs.json }}' | jq empty
+      - name: Assert compact JSON is valid
+        if: ${{ inputs.compact }}
+        run: |
+          echo '${{ steps.load.outputs.compact_json }}' | jq empty
+      - name: Assert ruleset_name matches expected
+        if: ${{ inputs.expected_name != '' && steps.load.outputs.ruleset_name != inputs.expected_name
+          }}
+        run: |
+          echo "❌ ruleset_name mismatch"
+          echo "Expected: ${{ inputs.expected_name }}"
+          echo "Found:    ${{ steps.load.outputs.ruleset_name }}"
+          exit 1
+      - name: Assert target_ref matches expected
+        if: ${{ inputs.expected_ref != '' && steps.load.outputs.target_ref != inputs.expected_ref
+          }}
+        run: |
+          echo "❌ target_ref mismatch"
+          echo "Expected: ${{ inputs.expected_ref }}"
+          echo "Found:    ${{ steps.load.outputs.target_ref }}"
+          exit 1
+      - name: Print all outputs
+        run: |-
+          echo "📛 ruleset_name:"
+          echo '${{ steps.load.outputs.ruleset_name }}'
+          echo "🔀 target_ref:"
+          echo '${{ steps.load.outputs.target_ref }}'
+          echo "📦 json (pretty):"
+          echo '${{ steps.load.outputs.json }}'
+          echo "📦 json (compact):"
+          echo '${{ steps.load.outputs.compact_json }}'

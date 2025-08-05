@@ -1,0 +1,51 @@
+---
+name: "Cleanup Temporary Branch Ruleset"
+description: "Delete a branch ruleset, used for smoke testing, from the repo"
+inputs:
+  ruleset_id:
+    type: number
+    description: "The integer assigned to the ruleset by GitHub."
+    required: true
+  repo:
+    type: string
+    description: "Target repo for ruleset operations. Passing a value will override
+      `github.repository`"
+    required: false
+  gh_token:
+    type: string
+    description: “Restricted PAT for lookup”
+    required: true
+  ci_admin_token:
+    type: string
+    description: “Admin token for destructive operations”
+    required: true
+outputs: {}
+runs:
+  using: "composite"
+  steps:
+    - name: Set repo variable
+      shell: bash
+      run: |
+        if [[ -z "${{ inputs.repo }}" ]]; then
+          echo "REPO=${GITHUB_REPOSITORY}" >> "$GITHUB_ENV"
+        else
+          echo "REPO=${{ inputs.repo }}" >> "$GITHUB_ENV"
+        fi
+    - name: "Delete Repo Branch Ruleset: id = ${{ inputs.ruleset_id }}"
+      id: delete
+      uses: ./.github/actions/github-rest-api
+      # outputs:
+      #  status
+      with:
+        method: DELETE
+        endpoint: /repos/${{ env.REPO }}/rulesets/${{ inputs.ruleset_id }}
+        token: ${{ inputs.ci_admin_token }}
+    - name: "Verify Ruleset Deletion"
+      shell: bash
+      run: |-
+        STATUS="${{ steps.delete.outputs.status }}"
+        if [[ "$STATUS" != "200" && "$STATUS" != "204" ]]; then
+          echo "❌ Ruleset ${{ inputs.ruleset_id }} was not deleted (HTTP $STATUS)."
+          exit 1
+        fi
+        echo "✅ Ruleset ${{ inputs.ruleset_id }} deleted (HTTP $STATUS)."

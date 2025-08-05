@@ -1,0 +1,138 @@
+---
+name: "Upsert Ruleset"
+on:
+  workflow_dispatch:
+    inputs:
+      default_ruleset_path:
+        description: "the path to the default ruleset json"
+        required: true
+        type: string
+        default: "./.github/rulesets/branch-default.json"
+      release_ruleset_path:
+        description: "the path to the release ruleset json"
+        required: true
+        type: string
+        default: "./.github/rulesets/branch-release.json"
+      development_ruleset_path:
+        description: "the path to the development ruleset json"
+        required: true
+        type: string
+        default: "./.github/rulesets/branch-development.json"
+      feature_ruleset_path:
+        description: "the path to the feature ruleset json"
+        required: true
+        type: string
+        default: "./.github/rulesets/branch-feature.json"
+  workflow_call:
+    inputs:
+      default_ruleset_path:
+        description: "the path to the default ruleset json"
+        required: false
+        type: string
+        default: "./.github/rulesets/branch-default.json"
+      release_ruleset_path:
+        description: "the path to the release ruleset json"
+        required: false
+        type: string
+        default: "./.github/rulesets/branch-release.json"
+      development_ruleset_path:
+        description: "the path to the development ruleset json"
+        required: false
+        type: string
+        default: "./.github/rulesets/branch-development.json"
+      feature_ruleset_path:
+        description: "the path to the feature ruleset json"
+        required: false
+        type: string
+        default: "./.github/rulesets/branch-feature.json"
+    secrets:
+      # There should be some secret naming convention:
+      #  if the secret is reading the token value directly, use one name
+      #  if the secret is being passed the token value, use a different name
+      #  e.g.,
+      #    secret.GITHUB_TOKEN == "direct read"
+      #    secret.gh_token == "passed the value"
+      # 1) in the context of a smoke test that calls a reusable workflow and an action,
+      # the reusable workflow and the action must be passed the token, therefore the
+      # smoke test is the only point where the token value was read.
+      # 2) A problem arises when the reusable workflow has an `on:` workflow_dispatch
+      #  and a workflow_call section - the workflow_dispatch would be looking need
+      #  to look up the token value directly while the workflow_call would be expecting
+      #  to be passed the token value. So, when downstream logic needs to use the token
+      #  the logic will need `GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+      GH_TOKEN:  # named this way to distinguish from workflow_dispatch reading GITHUB_TOKEN
+        required: true
+      CI_ADMIN:
+        required: true
+# first job should be to call smoke-validate-ruleset.yaml to ensure logic and tokens work
+jobs:
+  pre-flight:
+    name: "Pre-Flight: Validate downstream logic and tokens."
+    uses: ./.github/workflows/smoke-action-validate-ruleset.yaml
+    secrets:
+      GH_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+      CI_ADMIN: ${{ secrets.CI_ADMIN }}
+  upsert-ruleset:
+    name: "Upsert Branch Protection Rulesets"
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ruleset:
+          - path: ${{ inputs.default_ruleset_path }}
+          - path: ${{ inputs.release_ruleset_path }}
+          - path: ${{ inputs.development_ruleset_path }}
+          - path: ${{ inputs.feature_ruleset_path }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Admin Gate
+        uses: ./.github/actions/gate-admin
+        with:
+          gh_token: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+      - name: Detect Token Context
+        id: gate-token
+        uses: ./.github/actions/gate-token
+        # outputs:
+        #  context
+        with:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+          CI_ADMIN: ${{ secrets.CI_ADMIN }}
+      - name: "Load Ruleset JSON: ${{ matrix.ruleset.path }}"
+        id: load-json
+        uses: ./.github/actions/load-json
+        # outputs:
+        #  json
+        #  ruleset_name
+        with:
+          path: ${{ matrix.ruleset.path }}
+          # smoke the ruleset json if caller is local act
+          smoke: ${{ steps.gate-token.outputs.context == 'act' }}
+      - name: "Upsert Ruleset: ${{ steps.load-json.outputs.ruleset_name }}"
+        id: upsert-ruleset
+        uses: ./.github/actions/upsert-ruleset
+        # outputs:
+        #  ruleset_id
+        with:
+          json: ${{ steps.load-json.outputs.json }}
+          ruleset_name: ${{ steps.load-json.outputs.ruleset_name }}
+          gh_token: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+          ci_admin: ${{ secrets.CI_ADMIN }}
+      - name: "Validate Ruleset: name = ${{ steps.load-json.outputs.ruleset_name }},
+          id = ${{ steps.upsert-ruleset.outputs.ruleset_id }}"
+        uses: ./.github/actions/validate-ruleset
+        # outputs:
+        #  No outputs
+        with:
+          expected_json: ${{ toJSON(fromJSON(steps.load-json.outputs.json)) }}
+          ruleset_id: ${{ steps.upsert-ruleset.outputs.ruleset_id }}
+          gh_token: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+          ci_admin_token: ${{ secrets.CI_ADMIN }}
+      - name: "Delete Temporary Ruleset: ${{ steps.load-json.outputs.ruleset_name
+          }} (id: ${{ steps.upsert-ruleset.outputs.ruleset_id }})"
+        if: ${{ steps.gate-token.outputs.context == 'act' }}
+        uses: ./.github/actions/cleanup-temp-ruleset
+        # outputs:
+        #  No outputs
+        with:
+          ruleset_id: ${{ steps.upsert-ruleset.outputs.ruleset_id }}
+          gh_token: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
+          ci_admin_token: ${{ secrets.CI_ADMIN }}

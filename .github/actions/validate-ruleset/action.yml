@@ -53,6 +53,14 @@ runs:
               .current_user_can_bypass
             )' \
           | jq --sort-keys . > actual.json
+    - name: Detect Context
+      id: gate-token
+      uses: ./.github/actions/gate-token
+      # outputs:
+      #  context
+      with:
+        GITHUB_TOKEN: ${{ inputs.gh_token }}
+        CI_ADMIN: ${{ inputs.ci_admin_token }}
     - name: Strip out `bypass_actors` under CI
       if: ${{ steps.gate-token.outputs.context == 'github' }}
       shell: bash

@@ -4,6 +4,11 @@ on:
   pull_request:
   push:
     branches: [main, development]
+  workflow_dispatch: {}
 jobs:
-  test-load-json:
-    uses: ./.github/workflows/smoke-load-json.yaml
+  test-smoke-action-gate-token:
+    name: test the token passing
+    uses: ./.github/workflows/smoke-action-gate-token.yaml
+    secrets:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      CI_ADMIN: ${{ secrets.CI_ADMIN }}

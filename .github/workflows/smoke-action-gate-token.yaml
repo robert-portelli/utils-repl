@@ -1,7 +1,13 @@
 ---
 name: Smoke Token Context Gate
 on:
-  workflow_dispatch:
+  workflow_dispatch: {}
+  workflow_call:
+    secrets:
+      GITHUB_TOKEN:
+        required: true
+      CI_ADMIN:
+        required: true
 jobs:
   smoke-gate-token:
     runs-on: ubuntu-latest

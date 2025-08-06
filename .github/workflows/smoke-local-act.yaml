@@ -4,12 +4,29 @@ on:
   workflow_dispatch:
 jobs:
   smoke:
-    name: Secure Smoke Test
+    name: Local `act` sanity check
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
-      - name: Confirm GitHub context
+      - name: Verify .git directory
+        run: |
+          if [[ ! -d .git ]]; then
+            echo "❌ .git folder missing — checkout failed"
+            exit 1
+          fi
+          echo "✅ .git folder exists"
+      - name: Confirm runner env
         run: |-
-          echo "Repo: $GITHUB_REPOSITORY"
-          echo "Actor: $GITHUB_ACTOR"
-          echo "Workflow: $GITHUB_WORKFLOW"
+          echo "GITHUB_ACTIONS=$GITHUB_ACTIONS"
+          echo "CI=$CI"
+          echo "RUNNER_OS=$RUNNER_OS"
+          echo "ACT=$ACT"
+          # Fail if ACT is unset — ensures we’re actually under act
+          if [[ -z "$ACT" ]]; then
+            echo "❌ ACT variable missing — not running under act?"
+            exit 1
+          fi
+          echo "✅ Detected act environment"

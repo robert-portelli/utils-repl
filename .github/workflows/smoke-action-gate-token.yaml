@@ -4,7 +4,7 @@ on:
   workflow_dispatch: {}
   workflow_call:
     secrets:
-      GITHUB_TOKEN:
+      GH_TOKEN:
         required: true
       CI_ADMIN:
         required: true
@@ -17,7 +17,7 @@ jobs:
         id: detect
         uses: ./.github/actions/gate-token
         with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
           CI_ADMIN: ${{ secrets.CI_ADMIN }}
       - name: Gate on Github Token Context
         if: ${{ steps.detect.outputs.context == 'github' }}

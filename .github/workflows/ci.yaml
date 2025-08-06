@@ -10,5 +10,5 @@ jobs:
     name: test the token passing
     uses: ./.github/workflows/smoke-action-gate-token.yaml
     secrets:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       CI_ADMIN: ${{ secrets.CI_ADMIN }}

@@ -80,6 +80,7 @@ runs:
         } >> "$GITHUB_ENV"
     - id: return
       if: ${{ env.JSON != '' && env.RULESET_NAME != '' }}
+      shell: bash
       run: |-
         {
           echo 'json<<EOF'

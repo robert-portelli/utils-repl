@@ -22,10 +22,12 @@ runs:
         token: ${{ inputs.gh_token }}
     - name: Deny if not admin
       if: ${{ steps.get-perm.outputs.result != 'admin' }}
+      shell: bash
       run: |
         echo "❌ You must be a repo admin to run this."
         exit 1
     - name: Permission check passed
       if: ${{ steps.get-perm.outputs.result == 'admin' }}
+      shell: bash
       run: |-
         echo "✅ Permission check passed."

@@ -19,6 +19,7 @@ jobs:
         uses: ./.github/actions/load-json
         with:
           path: .github/rulesets/toy-ruleset.json
+          smoke: true
       - name: Upsert Toy Ruleset via Composite
         id: upsert-ruleset
         uses: ./.github/actions/upsert-ruleset

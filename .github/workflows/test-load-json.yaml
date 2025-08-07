@@ -47,14 +47,18 @@ jobs:
         if: ${{ inputs.compact }}
         run: |
           echo '${{ steps.load.outputs.compact_json }}' | jq empty
-      - name: Assert ruleset_name matches expected
-        if: ${{ inputs.expected_name != '' && steps.load.outputs.ruleset_name != inputs.expected_name
-          }}
+      - name: Assert ruleset_name matches pattern
+        if: ${{ inputs.expected_name != '' }}
+        shell: bash
         run: |
-          echo "❌ ruleset_name mismatch"
-          echo "Expected: ${{ inputs.expected_name }}"
-          echo "Found:    ${{ steps.load.outputs.ruleset_name }}"
-          exit 1
+          name="${{ steps.load.outputs.ruleset_name }}"
+          pattern="${{ inputs.expected_name }}"
+          if [[ ! "$name" == "$pattern" ]]; then
+            echo "❌ ruleset_name pattern mismatch"
+            echo "Expected pattern: $pattern"
+            echo "Found:            $name"
+            exit 1
+          fi
       - name: Assert target_ref matches expected
         if: ${{ inputs.expected_ref != '' && steps.load.outputs.target_ref != inputs.expected_ref
           }}

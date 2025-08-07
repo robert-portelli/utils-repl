@@ -16,7 +16,7 @@ jobs:
           - id: smoked
             compact: false
             smoke: true
-            expected_name: smoke-toy-ruleset
+            expected_name: smoke-*-toy-ruleset
             expected_ref: refs/heads/smoke-toy-branch
           - id: compact
             compact: true

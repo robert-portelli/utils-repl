@@ -40,7 +40,7 @@ runs:
           exit 1
         }
     - id: load
-      if: ${{ inputs.compact == 'false' && inputs.smoke == '' }}
+      if: ${{ inputs.compact == 'false' && inputs.smoke == 'false' }}
       shell: bash
       run: |-
         _JSON=$(cat "${{ inputs.path }}")
@@ -55,7 +55,7 @@ runs:
           echo "REF=$_REF"
         } >> "$GITHUB_ENV"
     - id: smoke
-      if: ${{ inputs.compact == 'false' && inputs.smoke != '' }}
+      if: ${{ inputs.compact == 'false' && inputs.smoke == 'true' }}
       shell: bash
       run: |-
         _JSON=$(cat "${{ inputs.path }}")

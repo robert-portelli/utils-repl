@@ -3,6 +3,11 @@ name: Smoke Test Upsert Branch Ruleset
 on:
   workflow_dispatch: {}
   workflow_call:
+    inputs:
+      force_smoke:
+        required: false
+        type: boolean
+        default: true
     secrets:
       GH_TOKEN:
         required: true
@@ -12,6 +17,8 @@ jobs:
   smoke-upsert-ruleset:
     name: Smoke Test Upserting Branch Rulesets
     uses: ./.github/workflows/upsert-branch-rulesets.yaml
+    with:
+      force_smoke: true
     secrets:
       # the token secret naming convention requires differentiation between keys that
       # are direct reads of the token value and keys that have been passed the token value.

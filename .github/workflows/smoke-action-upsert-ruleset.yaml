@@ -12,6 +12,21 @@ on:
         required: true
         type: string
         default: robert-portelli/smoke-utils-repl
+  workflow_call:
+    inputs:
+      src_repo:
+        required: false
+        type: string
+        default: robert-portelli/utils-repl
+      dst_repo:
+        required: false
+        type: string
+        default: robert-portelli/smoke-utils-repl
+    secrets:
+      GH_TOKEN:
+        required: true
+      CI_ADMIN:
+        required: true
 jobs:
   test-upsert-ruleset:
     name: Test Upsert Ruleset

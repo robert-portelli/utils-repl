@@ -1,7 +1,8 @@
 ---
 name: Smoke Test GitHub REST API Action
 on:
-  workflow_dispatch:
+  workflow_dispatch: {}
+  workflow_call: {}
 jobs:
   matrix-smoke-test:
     name: Matrix Test github-rest-api

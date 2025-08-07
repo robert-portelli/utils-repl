@@ -53,7 +53,8 @@ jobs:
         run: |
           name="${{ steps.load.outputs.ruleset_name }}"
           pattern="${{ inputs.expected_name }}"
-          if [[ ! "$name" == "$pattern" ]]; then
+          # shellcheck disable=SC2053
+          if [[ ! "$name" == $pattern ]]; then
             echo "❌ ruleset_name pattern mismatch"
             echo "Expected pattern: $pattern"
             echo "Found:            $name"

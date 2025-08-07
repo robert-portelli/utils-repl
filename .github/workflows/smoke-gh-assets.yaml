@@ -9,6 +9,9 @@ on:
 jobs:
   smoke-action-github-rest-api:
     uses: ./.github/workflows/smoke-action-github-rest-api.yaml
+    secrets:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      CI_ADMIN: ${{ secrets.CI_ADMIN }}
   smoke-action-gate-admin:
     uses: ./.github/workflows/smoke-action-gate-admin.yaml
     secrets:

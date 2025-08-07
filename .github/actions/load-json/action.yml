@@ -40,7 +40,7 @@ runs:
           exit 1
         }
     - id: load
-      if: ${{ inputs.compact == 'false' && inputs.smoke == '' }}
+      if: ${{ inputs.compact == 'false' && inputs.smoke == 'false' }}
       shell: bash
       run: |-
         _JSON=$(cat "${{ inputs.path }}")
@@ -55,15 +55,17 @@ runs:
           echo "REF=$_REF"
         } >> "$GITHUB_ENV"
     - id: smoke
-      if: ${{ inputs.compact == 'false' && inputs.smoke != '' }}
+      if: ${{ inputs.compact == 'false' && inputs.smoke == 'true' }}
       shell: bash
       run: |-
+        rand_hex=$(printf "%04x%04x" $RANDOM $RANDOM)
         _JSON=$(cat "${{ inputs.path }}")
         default_branch="${GITHUB_REF_NAME:-main}"
         {
           _modified_json="$(echo "$_JSON" | jq \
+            --arg rand "$rand_hex" \
             --arg default_branch "$default_branch" \
-            '.name |= "smoke-\(.)" |
+            '.name |= "smoke-\($rand)-\(.)" |
              .conditions.ref_name.include |= map(
                if . == "~DEFAULT" then "refs/heads/smoke-\($default_branch)"
                elif . == "~ALL" then .
@@ -80,6 +82,7 @@ runs:
         } >> "$GITHUB_ENV"
     - id: return
       if: ${{ env.JSON != '' && env.RULESET_NAME != '' }}
+      shell: bash
       run: |-
         {
           echo 'json<<EOF'

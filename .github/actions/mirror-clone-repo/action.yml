@@ -20,10 +20,12 @@ runs:
   using: "composite"
   steps:
     - name: Mirror clone source repo
+      shell: bash
       run: |
         git clone --mirror https://x-access-token:${{ inputs.gh_token }}@github.com/${{ inputs.src_repo }} /tmp/mirror.git
     - name: Push mirror to destination
       working-directory: /tmp/mirror.git
+      shell: bash
       run: |-
         # Remove hidden refs
         git for-each-ref --format='%(refname)' refs/pull | xargs -n 1 git update-ref -d

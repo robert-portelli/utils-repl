@@ -1,7 +1,8 @@
 ---
 name: Smoke Test Load JSON (Matrix)
 on:
-  workflow_dispatch:
+  workflow_dispatch: {}
+  workflow_call: {}
 jobs:
   run-matrix:
     strategy:
@@ -9,17 +10,17 @@ jobs:
         test_case:
           - id: pretty
             compact: false
-            smoke: ''
+            smoke: false
             expected_name: toy-ruleset
             expected_ref: refs/heads/toy-branch
           - id: smoked
             compact: false
             smoke: true
-            expected_name: smoke-toy-ruleset
+            expected_name: smoke-*-toy-ruleset
             expected_ref: refs/heads/smoke-toy-branch
           - id: compact
             compact: true
-            smoke: ''
+            smoke: false
     name: "Load JSON: id=${{ matrix.test_case.id }}, smoke=${{ matrix.test_case.smoke
       }}"
     uses: ./.github/workflows/test-load-json.yaml

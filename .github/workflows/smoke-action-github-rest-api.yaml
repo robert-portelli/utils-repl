@@ -1,7 +1,13 @@
 ---
 name: Smoke Test GitHub REST API Action
 on:
-  workflow_dispatch:
+  workflow_dispatch: {}
+  workflow_call:
+    secrets:
+      GH_TOKEN:
+        required: true
+      CI_ADMIN:
+        required: true
 jobs:
   matrix-smoke-test:
     name: Matrix Test github-rest-api
@@ -20,7 +26,7 @@ jobs:
         with:
           method: GET
           endpoint: /repos/${{ github.repository }}
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
           extract: '.full_name'
       - name: "Assert HTTP status: ${{ matrix.test_case }}"
         if: ${{ matrix.test_case == 'get-metadata' && steps.get.outputs.status !=

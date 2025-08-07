@@ -53,14 +53,24 @@ runs:
               .current_user_can_bypass
             )' \
           | jq --sort-keys . > actual.json
+    - name: Detect Context
+      id: gate-token
+      uses: ./.github/actions/gate-token
+      # outputs:
+      #  context
+      with:
+        GITHUB_TOKEN: ${{ inputs.gh_token }}
+        CI_ADMIN: ${{ inputs.ci_admin_token }}
     - name: Strip out `bypass_actors` under CI
       if: ${{ steps.gate-token.outputs.context == 'github' }}
+      shell: bash
       run: |
         # only delete if it exists; under `act` it already does
         if jq 'has("bypass_actors")' expected.json | grep -q true; then
           jq 'del(.bypass_actors)' expected.json > tmp && mv tmp expected.json
         fi
     - name: Compare expected vs actual
+      shell: bash
       run: |-
         echo "🧪 Comparing JSON:"
         diff -u expected.json actual.json || {

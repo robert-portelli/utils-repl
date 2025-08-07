@@ -2,6 +2,10 @@
 name: Smoke Test Gate Admin
 on:
   workflow_dispatch: {}
+  workflow_call:
+    secrets:
+      GH_TOKEN:
+        required: true
 jobs:
   smoke-gate-admin:
     name: Smoke Test Gate Admin Action
@@ -12,7 +16,7 @@ jobs:
         id: truthy
         uses: ./.github/actions/gate-admin
         with:
-          gh_token: ${{ secrets.GITHUB_TOKEN }}
+          gh_token: ${{ secrets.GH_TOKEN || secrets.GITHUB_TOKEN }}
       - name: Assert truthy admin check succeeded
         if: ${{ steps.truthy.outcome == 'failure' || steps.truthy.outputs.permission
           != 'admin' }}

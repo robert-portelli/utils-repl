@@ -45,6 +45,11 @@ on:
         required: false
         type: string
         default: "./.github/rulesets/branch-feature.json"
+      force_smoke:
+        description: "When true, always run in smoke-test mode"
+        required: false
+        type: boolean
+        default: false
     secrets:
       # There should be some secret naming convention:
       #  if the secret is reading the token value directly, use one name
@@ -104,8 +109,10 @@ jobs:
         #  ruleset_name
         with:
           path: ${{ matrix.ruleset.path }}
+          # smoke the ruleset json with force (from CI github context) or
           # smoke the ruleset json if caller is local act
-          smoke: ${{ steps.gate-token.outputs.context == 'act' }}
+          smoke: ${{ inputs.force_smoke || steps.gate-token.outputs.context == 'act'
+            }}
       - name: "Upsert Ruleset: ${{ steps.load-json.outputs.ruleset_name }}"
         id: upsert-ruleset
         uses: ./.github/actions/upsert-ruleset
@@ -128,7 +135,7 @@ jobs:
           ci_admin_token: ${{ secrets.CI_ADMIN }}
       - name: "Delete Temporary Ruleset: ${{ steps.load-json.outputs.ruleset_name
           }} (id: ${{ steps.upsert-ruleset.outputs.ruleset_id }})"
-        if: ${{ steps.gate-token.outputs.context == 'act' }}
+        if: ${{ inputs.force_smoke || steps.gate-token.outputs.context == 'act' }}
         uses: ./.github/actions/cleanup-temp-ruleset
         # outputs:
         #  No outputs

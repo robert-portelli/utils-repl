@@ -1,6 +1,10 @@
 ---
-name: CI
+name: Run Smoke Tests on GitHub Actions Assets
 on:
+  pull_request:
+    branches:
+      - development
+      - main
   workflow_dispatch: {}
 jobs:
   smoke-action-github-rest-api:
@@ -9,33 +13,27 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       CI_ADMIN: ${{ secrets.CI_ADMIN }}
   smoke-action-gate-admin:
-    needs: smoke-action-github-rest-api
     uses: ./.github/workflows/smoke-action-gate-admin.yaml
     secrets:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   smoke-action-gate-token:
-    needs: smoke-action-gate-admin
     uses: ./.github/workflows/smoke-action-gate-token.yaml
     secrets:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       CI_ADMIN: ${{ secrets.CI_ADMIN }}
   smoke-action-load-json:
-    needs: smoke-action-gate-token
     uses: ./.github/workflows/smoke-action-load-json.yaml
   smoke-action-upsert-ruleset:
-    needs: smoke-action-load-json
     uses: ./.github/workflows/smoke-action-upsert-ruleset.yaml
     secrets:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       CI_ADMIN: ${{ secrets.CI_ADMIN }}
   smoke-action-validate-ruleset:
-    needs: smoke-action-upsert-ruleset
     uses: ./.github/workflows/smoke-action-validate-ruleset.yaml
     secrets:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       CI_ADMIN: ${{ secrets.CI_ADMIN }}
   smoke-workflow-upsert-branch-rulesets:
-    needs: smoke-action-validate-ruleset
     uses: ./.github/workflows/smoke-workflow-upsert-branch-rulesets.yaml
     secrets:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -15,8 +15,8 @@ on:
       smoke:
         description: "Set to true to simulate smoking the JSON"
         required: false
-        default: ''
-        type: string
+        default: false
+        type: boolean
       expected_name:
         description: "Expected value of .name in the JSON"
         required: false
